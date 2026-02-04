@@ -1,5 +1,5 @@
 Name:           ki7mt-ai-lab-training
-Version:        2.1.0
+Version:        2.2.0
 Release:        1%{?dist}
 Summary:        IONIS V2 training scripts for KI7MT AI Lab
 
@@ -50,6 +50,9 @@ install -m 644 Modelfile %{buildroot}%{_datadir}/%{name}/
 %{_datadir}/%{name}/Modelfile
 
 %changelog
+* Tue Feb 04 2026 Greg Beam <ki7mt@yahoo.com> - 2.2.0-1
+- Align version across all lab packages at 2.2.0 for Phase 4.1
+
 * Mon Feb 03 2026 Greg Beam <ki7mt@yahoo.com> - 2.1.0-1
 - Initial packaging for COPR
 - IONIS V2 training scripts and sensitivity analysis
