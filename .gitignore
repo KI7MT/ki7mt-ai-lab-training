@@ -3,10 +3,17 @@ data/
 
 # Python virtual environment
 .venv/
-
-# PyTorch checkpoints (large binary files)
-*.pth
+venv/
 
 # Python bytecode
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
