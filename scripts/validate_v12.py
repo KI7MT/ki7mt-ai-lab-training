@@ -318,7 +318,8 @@ def load_validation_sample(
         g1.grid AS tx_grid,
         g2.grid AS rx_grid,
         COALESCE(s.sfi, 150.0) AS sfi,
-        COALESCE(s.kp, 3.0) AS kp
+        COALESCE(s.kp, 3.0) AS kp,
+        COALESCE(s.ssn, 100.0) AS ssn
     FROM contest.bronze c
     INNER JOIN wspr.callsign_grid g1 ON c.call_1 = g1.callsign
     INNER JOIN wspr.callsign_grid g2 ON c.call_2 = g2.callsign
@@ -326,7 +327,8 @@ def load_validation_sample(
         SELECT
             date,
             avg(adjusted_flux) AS sfi,
-            avg(kp_index) AS kp
+            avg(kp_index) AS kp,
+            avg(ssn) AS ssn
         FROM solar.bronze
         WHERE adjusted_flux > 0
         GROUP BY date
@@ -342,7 +344,7 @@ def load_validation_sample(
     result = client.query(query)
 
     df = pd.DataFrame(result.result_rows, columns=[
-        'timestamp', 'mode', 'contest', 'band', 'tx_grid', 'rx_grid', 'sfi', 'kp'
+        'timestamp', 'mode', 'contest', 'band', 'tx_grid', 'rx_grid', 'sfi', 'kp', 'ssn'
     ])
 
     print(f"  Loaded {len(df):,} QSOs")
@@ -571,6 +573,68 @@ def print_results(results: ValidationResults, include_grey_line: bool = False):
     print("\n" + "=" * 70)
 
 
+# ── Export for VOACAP ─────────────────────────────────────────────────────────
+
+# Band ID to MHz for VOACAP input
+BAND_TO_MHZ = {
+    102:  1.8,    # 160m
+    103:  3.5,    # 80m
+    104:  5.3,    # 60m
+    105:  7.0,    # 40m
+    106: 10.1,    # 30m
+    107: 14.0,    # 20m
+    108: 18.1,    # 17m
+    109: 21.0,    # 15m
+    110: 24.9,    # 12m
+    111: 28.0,    # 10m
+}
+
+
+def export_for_voacap(df: pd.DataFrame, output_path: str):
+    """
+    Export validation data in VOACAP-ready format for 9975.
+
+    Columns:
+        tx_lat, tx_lon, rx_lat, rx_lon, freq_mhz, year, month, hour_utc,
+        ssn, mode, band_open (IONIS prediction)
+    """
+    print(f"\nExporting {len(df):,} paths for VOACAP comparison...")
+
+    # Compute band_open from IONIS predictions
+    df['band_open'] = (df['predicted_snr'] >= df['threshold']).astype(int)
+
+    # Extract year from timestamp
+    df['year'] = df['timestamp'].apply(lambda x: x.year)
+
+    # Map band to MHz
+    df['freq_mhz'] = df['band'].map(BAND_TO_MHZ).fillna(14.0)
+
+    # Build export DataFrame
+    export_df = pd.DataFrame({
+        'tx_lat': df['lat_tx'].round(4),
+        'tx_lon': df['lon_tx'].round(4),
+        'rx_lat': df['lat_rx'].round(4),
+        'rx_lon': df['lon_rx'].round(4),
+        'freq_mhz': df['freq_mhz'],
+        'year': df['year'],
+        'month': df['month'].astype(int),
+        'hour_utc': df['hour'].astype(int),
+        'ssn': df['ssn'].round(1),
+        'mode': df['mode'],
+        'ionis_snr': df['predicted_snr'].round(2),
+        'threshold': df['threshold'],
+        'band_open': df['band_open'],
+    })
+
+    export_df.to_csv(output_path, index=False)
+    print(f"  Exported to: {output_path}")
+
+    # Summary stats
+    open_count = export_df['band_open'].sum()
+    print(f"  IONIS band_open=1: {open_count:,} ({100*open_count/len(df):.1f}%)")
+    print(f"  IONIS band_open=0: {len(df)-open_count:,} ({100*(len(df)-open_count)/len(df):.1f}%)")
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -583,6 +647,8 @@ def main():
                         help="Include grey line analysis")
     parser.add_argument("--batch-size", type=int, default=10000,
                         help="Inference batch size (default: 10000)")
+    parser.add_argument("--export", type=str, default=None,
+                        help="Export paths to CSV for VOACAP comparison (e.g., --export voacap_paths.csv)")
     args = parser.parse_args()
 
     print("=" * 70)
@@ -619,6 +685,10 @@ def main():
     # Compute and print results
     results = compute_metrics(df, include_grey_line=args.grey_line)
     print_results(results, include_grey_line=args.grey_line)
+
+    # Export for VOACAP if requested
+    if args.export:
+        export_for_voacap(df, args.export)
 
     # Summary
     print(f"\nValidation complete. {results.total_qsos:,} QSOs processed.")
