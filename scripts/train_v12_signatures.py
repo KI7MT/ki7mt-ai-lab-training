@@ -341,13 +341,31 @@ def pearson_r(pred, target):
 # ── Data Loading from ClickHouse ─────────────────────────────────────────────
 
 def load_signatures():
-    """Load wspr.signatures_v1 from ClickHouse via DAC link."""
+    """Load wspr.signatures_v1 from ClickHouse via DAC link.
+
+    Returns:
+        df: DataFrame with signature data
+        date_range: str describing actual source data date range
+    """
     log.info(f"Connecting to ClickHouse at {CH_HOST}:{CH_PORT}...")
     client = clickhouse_connect.get_client(host=CH_HOST, port=CH_PORT)
 
     # Verify table exists and get row count
     count = client.command("SELECT count() FROM wspr.signatures_v1")
     log.info(f"signatures_v1: {count:,} rows")
+
+    # Query actual date range from source data (wspr.bronze)
+    # signatures_v1 aggregates all available data, so we query the source
+    date_query = """
+    SELECT
+        formatDateTime(min(timestamp), '%Y-%m-%d') as min_date,
+        formatDateTime(max(timestamp), '%Y-%m-%d') as max_date
+    FROM wspr.bronze
+    """
+    date_result = client.query(date_query)
+    min_date, max_date = date_result.result_rows[0]
+    date_range = f"{min_date} to {max_date}"
+    log.info(f"Source data range: {date_range}")
 
     # Build query
     limit_clause = f" LIMIT {SAMPLE_SIZE}" if SAMPLE_SIZE else ""
@@ -380,7 +398,7 @@ def load_signatures():
     log.info(f"Loaded {len(df):,} rows in {load_sec:.1f}s via DAC link")
 
     client.close()
-    return df
+    return df, date_range
 
 
 # ── Training ─────────────────────────────────────────────────────────────────
@@ -396,7 +414,7 @@ def main():
     log.info("")
 
     # ── Load Data ──
-    df = load_signatures()
+    df, date_range = load_signatures()
 
     # Target: median SNR per bucket
     y_raw = df['median_snr'].values.astype(np.float32)
@@ -647,7 +665,7 @@ def main():
                 'sidecar_hidden': 8,
                 'features': FEATURES,
                 'band_to_hz': BAND_TO_HZ,
-                'date_range': '2020-01-01 to 2026-02-04',
+                'date_range': date_range,
                 'sample_size': n,
                 'val_rmse': val_rmse,
                 'val_pearson': val_pearson,
