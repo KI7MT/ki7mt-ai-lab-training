@@ -522,7 +522,7 @@ def main():
                 'activation': 'Mish (DNN), Softplus (sidecars)',
                 'batchnorm': False,
                 'sampling': 'IFW (Efraimidis-Spirakis, 2D SSN×lat density)',
-                'data_source': 'wspr.training_v6_clean (IFW + kp_penalty)',
+                'data_source': 'wspr.gold_v6 (IFW + kp_penalty)',
                 'architecture': 'IonisDualMono (DNN 14->512->256->128->1 + 2x MonotonicMLP)',
                 'monotonic_constraint': 'abs(weights) + Softplus in sidecars',
                 'sfi_benefit_dB': sfi_benefit,

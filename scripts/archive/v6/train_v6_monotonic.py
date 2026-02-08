@@ -3,7 +3,7 @@
 train_v6_monotonic.py — IONIS V2: Phase 6 Monotonic Kp Constraint Training
 
 Reads pre-materialized CSV from data/training_v6_clean.csv (exported from
-wspr.training_v6_clean on 9975WX). Enforces positive weight on kp_penalty
+wspr.gold_v6 on 9975WX). Enforces positive weight on kp_penalty
 feature to prevent Kp inversion observed in Phase 5.2.
 
 Phase 6 changes from Phase 5.2:
@@ -332,7 +332,7 @@ def main():
                 'activation': 'Mish',
                 'batchnorm': False,
                 'sampling': 'IFW (Efraimidis-Spirakis, 2D SSN×lat density)',
-                'data_source': 'wspr.training_v6_clean (IFW + kp_penalty)',
+                'data_source': 'wspr.gold_v6 (IFW + kp_penalty)',
                 'monotonic_constraint': 'kp_penalty (idx 17) weights >= 0',
             }, model_path)
             marker = " *"

@@ -3,7 +3,7 @@
 train_v8_sidecar.py — IONIS V2: Phase 8 PIML Sidecar Architecture
 
 Reads pre-materialized CSV from data/training_v6_clean.csv (exported from
-wspr.training_v6_clean on 9975WX). Uses Physics-Informed ML (PIML) hybrid
+wspr.gold_v6 on 9975WX). Uses Physics-Informed ML (PIML) hybrid
 architecture: a deep MLP for 16 features + a linear sidecar for kp_penalty
 that bypasses all hidden layers.
 
@@ -368,7 +368,7 @@ def main():
                 'activation': 'Mish',
                 'batchnorm': False,
                 'sampling': 'IFW (Efraimidis-Spirakis, 2D SSN×lat density)',
-                'data_source': 'wspr.training_v6_clean (IFW + kp_penalty)',
+                'data_source': 'wspr.gold_v6 (IFW + kp_penalty)',
                 'architecture': 'IonisHybrid (DNN 16->512->256->128->1 + Sidecar 1->1)',
                 'monotonic_constraint': 'sidecar weight >= 0 (no hidden layers, unbreakable)',
                 'sidecar_weight': kp_w,

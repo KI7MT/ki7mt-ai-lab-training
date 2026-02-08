@@ -42,7 +42,7 @@ FEATURES = [
 ]
 
 # WSPR band ID → dial frequency in Hz (standard codes only)
-# Band IDs 1-15 match the integer values stored in wspr.spots_raw.band
+# Band IDs 1-15 match the integer values stored in wspr.bronze.band
 # Leaked values (band > 15) are excluded by SQL filter.
 BAND_TO_HZ = {
      1:  1_836_600,     # 160m
@@ -202,10 +202,10 @@ class WSPRDataset(Dataset):
                        s.azimuth,
                        toString(s.grid) AS grid, toString(s.reporter_grid) AS reporter_grid,
                        sol.ssn
-                FROM wspr.spots_raw s
+                FROM wspr.bronze s
                 INNER JOIN (
                     SELECT date, max(ssn) AS ssn
-                    FROM solar.indices_raw FINAL
+                    FROM solar.bronze FINAL
                     GROUP BY date
                     HAVING ssn > 0
                 ) sol ON toDate(s.timestamp) = sol.date
@@ -234,7 +234,7 @@ class WSPRDataset(Dataset):
             fallback_query = f"""
                 WITH solar_daily AS (
                     SELECT date, max(ssn) AS ssn
-                    FROM solar.indices_raw FINAL
+                    FROM solar.bronze FINAL
                     GROUP BY date
                     HAVING ssn > 0
                 )
@@ -242,7 +242,7 @@ class WSPRDataset(Dataset):
                        toHour(s.timestamp), toMonth(s.timestamp), s.azimuth,
                        toString(s.grid), toString(s.reporter_grid),
                        sol.ssn
-                FROM wspr.spots_raw s
+                FROM wspr.bronze s
                 INNER JOIN solar_daily sol
                     ON toDate(s.timestamp) = sol.date
                 WHERE s.timestamp >= '{DATE_START}' AND s.timestamp < '{DATE_END}'

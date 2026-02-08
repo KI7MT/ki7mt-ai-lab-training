@@ -3,7 +3,7 @@
 train_v2_core.py — IONIS V2 Oracle: Streaming ClickHouse Training Engine
 
 Phase 5.2: Continuous Weighting — 17-feature model with IFW sampling
-Reads pre-materialized wspr.training_continuous (10M rows, IFW-weighted)
+Reads pre-materialized wspr.gold_continuous (10M rows, IFW-weighted)
 from ClickHouse (9975WX) directly to PyTorch tensors. No intermediate files.
 
 Phase 5.2 changes from Phase 5:
@@ -14,7 +14,7 @@ Phase 5.2 changes from Phase 5:
     ADDED:   WeightedRandomSampler using IFW sampling_weight column
 
 Architecture: 17 → 512 → 256 → 128 → 1 (Mish + BatchNorm)
-Data source:  wspr.training_continuous (1M rows × 10 bands, IFW-weighted)
+Data source:  wspr.gold_continuous (1M rows × 10 bands, IFW-weighted)
 
 Usage:
     python train_v2_core.py
@@ -241,7 +241,7 @@ def engineer_features(distance, freq_hz, hour, month, azimuth,
 def build_continuous_query():
     """Single query to read pre-materialized IFW-weighted training table.
 
-    wspr.training_continuous is populated on the 9975WX with
+    wspr.gold_continuous is populated on the 9975WX with
     Efraimidis-Spirakis weighted sampling against a 2D (SSN, lat)
     density histogram. 10M rows, 1M per band, no discrete SSN bins.
     """
@@ -249,7 +249,7 @@ def build_continuous_query():
         SELECT snr, distance, band, hour, month, azimuth,
                tx_grid, rx_grid, ssn, sfi, kp,
                midpoint_lat, sampling_weight, sfi_dist_interact
-        FROM wspr.training_continuous
+        FROM wspr.gold_continuous
         ORDER BY cityHash64(tx_grid, rx_grid, toString(snr))
     """
 
@@ -278,14 +278,14 @@ def connect_clickhouse():
 
 
 def stream_dataset():
-    """Read pre-materialized wspr.training_continuous → (X, y, weights) tensors.
+    """Read pre-materialized wspr.gold_continuous → (X, y, weights) tensors.
 
     Single query reads all 10M rows. Feature engineering runs in Python.
     Returns sampling_weight array for WeightedRandomSampler.
     """
     client = connect_clickhouse()
 
-    log.info(f"Reading wspr.training_continuous (pre-materialized, IFW-weighted)")
+    log.info(f"Reading wspr.gold_continuous (pre-materialized, IFW-weighted)")
 
     t0 = time.perf_counter()
     feat_blocks = []
@@ -354,7 +354,7 @@ def stream_dataset():
     log.info(f"Ingestion complete: {total_rows:,} rows in {elapsed:.1f}s ({rps:,.0f} rows/sec)")
 
     if total_rows == 0:
-        raise RuntimeError("No rows ingested — check wspr.training_continuous")
+        raise RuntimeError("No rows ingested — check wspr.gold_continuous")
 
     X_np = np.concatenate(feat_blocks, axis=0)
     y_np = np.concatenate(tgt_blocks, axis=0)
@@ -546,7 +546,7 @@ def main():
                 'solar_resolution': '3-hourly Kp, daily SFI/SSN (GFZ Potsdam)',
                 'activation': 'Mish',
                 'sampling': 'IFW (Efraimidis-Spirakis, 2D SSN×lat density)',
-                'data_source': 'wspr.training_continuous (IFW-weighted)',
+                'data_source': 'wspr.gold_continuous (IFW-weighted)',
             }, model_path)
             marker = " *"
 

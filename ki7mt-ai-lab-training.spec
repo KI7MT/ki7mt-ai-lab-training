@@ -1,5 +1,5 @@
 Name:           ki7mt-ai-lab-training
-Version:        2.3.0
+Version:        2.3.1
 Release:        1%{?dist}
 Summary:        IONIS V2 training scripts for KI7MT AI Lab
 
@@ -50,6 +50,10 @@ install -m 644 Modelfile %{buildroot}%{_datadir}/%{name}/
 %{_datadir}/%{name}/Modelfile
 
 %changelog
+* Sat Feb 08 2026 Greg Beam <ki7mt@yahoo.com> - 2.3.1-1
+- Medallion architecture: gold_* table references
+- Align version across all lab packages at 2.3.1
+
 * Sat Feb 07 2026 Greg Beam <ki7mt@yahoo.com> - 2.3.0-1
 - Align version across all lab packages at 2.3.0
 

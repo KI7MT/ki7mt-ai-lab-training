@@ -18,7 +18,7 @@ We do the same thing with the ionosphere:
    under specific conditions
 2. **The CUDA embeddings are the signatures** — float4 vectors encoding
    path geometry, solar conditions, and temporal variables
-3. **The 4.4 billion vectors in model_features are the signature library**
+3. **The 4.4 billion vectors in silver are the signature library**
 4. **Given current conditions**, match against the library to find what
    historically happened under similar conditions
 5. **The matching signatures tell you what propagation will look like**
@@ -55,7 +55,7 @@ library has the receipts. Together, they solve the inverse problem.
 **What's built and working:**
 - Data pipeline: 10.8B WSPR spots in ClickHouse, solar backfill (2000-2026),
   Go ingesters at 24M rows/sec. Solid and complete.
-- CUDA signature engine: 4.4B float4 embeddings in wspr.model_features.
+- CUDA signature engine: 4.4B float4 embeddings in wspr.silver.
   The signature library exists.
 - Neural model: IONIS V11, correct physics directions, monotonic sidecars,
   geographic gates. The rules are learned.

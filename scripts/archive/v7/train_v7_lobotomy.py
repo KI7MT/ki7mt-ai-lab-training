@@ -3,7 +3,7 @@
 train_v7_lobotomy.py — IONIS V2: Phase 7 Kp Lobotomy Training
 
 Reads pre-materialized CSV from data/training_v6_clean.csv (exported from
-wspr.training_v6_clean on 9975WX). Raw kp feature REMOVED — all geomagnetic
+wspr.gold_v6 on 9975WX). Raw kp feature REMOVED — all geomagnetic
 logic forced through the monotonic-constrained kp_penalty channel.
 
 Phase 7 changes from Phase 6:
@@ -338,7 +338,7 @@ def main():
                 'activation': 'Mish',
                 'batchnorm': False,
                 'sampling': 'IFW (Efraimidis-Spirakis, 2D SSN×lat density)',
-                'data_source': 'wspr.training_v6_clean (IFW + kp_penalty)',
+                'data_source': 'wspr.gold_v6 (IFW + kp_penalty)',
                 'monotonic_constraint': 'kp_penalty (idx 16) weights >= 0, raw kp REMOVED',
             }, model_path)
             marker = " *"
