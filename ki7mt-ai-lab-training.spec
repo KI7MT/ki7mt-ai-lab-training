@@ -1,5 +1,5 @@
 Name:           ki7mt-ai-lab-training
-Version:        2.2.0
+Version:        2.3.0
 Release:        1%{?dist}
 Summary:        IONIS V2 training scripts for KI7MT AI Lab
 
@@ -11,7 +11,7 @@ BuildArch:      noarch
 
 Requires:       python3 >= 3.9
 Requires:       python3-pip
-Requires:       ki7mt-ai-lab-core >= 2.1.0
+Requires:       ki7mt-ai-lab-core >= 2.3.0
 
 %description
 IONIS (Ionospheric Neural Inference System) V2 training and analysis scripts
@@ -50,6 +50,9 @@ install -m 644 Modelfile %{buildroot}%{_datadir}/%{name}/
 %{_datadir}/%{name}/Modelfile
 
 %changelog
+* Fri Feb 07 2026 Greg Beam <ki7mt@yahoo.com> - 2.3.0-1
+- Align version across all lab packages at 2.3.0
+
 * Tue Feb 04 2026 Greg Beam <ki7mt@yahoo.com> - 2.2.0-1
 - Align version across all lab packages at 2.2.0 for Phase 4.1
 
