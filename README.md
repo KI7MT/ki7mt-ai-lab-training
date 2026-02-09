@@ -1,61 +1,125 @@
-### **IONIS: Ionospheric Neural Inference System**
+# KI7MT AI Lab — Training
 
-**Phase 2/3: High-Fidelity Radio Propagation Modeling**
+PyTorch training and validation for the **IONIS** (Ionospheric Neural Inference System) propagation model.
 
-#### **Overview**
+## Current Model
 
-IONIS (Ionospheric Neural Inference System) is a deep learning framework designed to predict High-Frequency (HF) radio propagation performance using the WSPR (Weak Signal Propagation Reporter) dataset. By integrating real-time solar indices and geographic path data, IONIS provides a high-resolution estimation of Signal-to-Noise Ratio (SNR) for global transatlantic and trans-equatorial paths.
+**IONIS V13 Combined** — Multi-Source Hybrid
+- 203,573 parameters (IonisV12Gate architecture)
+- Trained on 20M WSPR + 91K RBN DXpedition signatures
+- Per-source per-band Z-score normalization
+- 152 rare DXCC entities covered
+
+| Metric | Value |
+|--------|-------|
+| RMSE | 0.60σ (~4.0 dB) |
+| Pearson | +0.2865 |
+| SFI benefit (70→200) | +5.2 dB |
+| Kp storm cost (0→9) | +10.4 dB |
+| Step I Recall | 85.34% (+9.5 pp vs reference) |
+
+## Architecture
 
 ```
-Pedigree of this model:
-Attribute	        Formal Value
-Model ID	        IONIS-V2-P3
-Architecture	    Multilayer Perceptron (MLP) / PyTorch 2.x
-Training Hardware	Apple M3 Ultra (76-core GPU / 96GB Unified Memory)
-Data Engine	        ClickHouse @ AMD Threadripper 9975WX
-Feature Set	        13-D (Includes Solar-Hour, SSN-Lat, and Day/Night Est)
-Constraint	        Physically Informed (Phase 3 SNR-filtered)
+IonisV12Gate (203,573 params)
+├── Trunk: 11 geography/time features → 512 → 256
+├── Base Head: 256 → 128 → 1 (baseline SNR)
+├── Sun Scaler Head: 256 → 64 → 1 (geographic gate)
+├── Storm Scaler Head: 256 → 64 → 1 (geographic gate)
+├── Sun Sidecar: MonotonicMLP (SFI → SNR boost)
+└── Storm Sidecar: MonotonicMLP (Kp → SNR penalty)
 ```
-#### **Technical Architecture**
 
-* **Core Model:** Residual Neural Network (ResNet-style)
-* **Parameters:** ~268,545
-* **Input Dimensions:** 13 (Physical & Engineered Features)
-* **Hidden Layers:** 256-unit width with Dropout and Batch Normalization.
-* **Hardware Stack:** * **Inference/Training:** Apple M3 Ultra (96GB Unified Memory) via Metal Performance Shaders (MPS).
-* **Data Engine:** AMD Threadripper 9975WX feeding a ClickHouse OLAP database.
+**Key innovation:** Gated monotonic sidecars enforce physics constraints (SFI+, Kp-) while allowing geographic modulation of sensitivity.
 
+## Scripts
 
-#### **Features (V2.1 "Clean" Specs)**
+### Training
+| Script | Purpose |
+|--------|---------|
+| `train_v13_combined.py` | V13: WSPR + RBN DXpedition (production) |
+| `train_v12_signatures.py` | V12: WSPR signatures only |
+| `train_v13_1_combined.py` | V13.1: 25x upsampling experiment |
 
-IONIS uses a 13-feature vector to resolve the complex relationship between the Sun and the Earth's ionosphere:
+### Validation
+| Script | Purpose |
+|--------|---------|
+| `test_v13_combined.py` | V13 sensitivity analysis |
+| `verify_v13_combined.py` | V13 physics verification (4/4 pass) |
+| `validate_v13_step_i.py` | Step I: 1M contest path validation |
+| `signature_search.py` | kNN search over 93.4M signatures |
 
-* **Geographic:** `distance`, `azimuth`, `lat_diff`, `midpoint_lat`
-* **Temporal:** `hour_sin/cos`, `season_sin/cos`
-* **Solar:** `ssn` (Sunspot Number)
-* **Engineered:** * `ssn_lat_interact`: Resolves how solar activity affects different latitudinal zones.
-* `day_night_est`: A local solar-hour approximation for D-layer absorption modeling.
+### Legacy
+| Script | Purpose |
+|--------|---------|
+| `oracle_v12.py` | V12 inference + 35-test physics suite |
+| `test_v12_signatures.py` | V12 sensitivity analysis |
+| `verify_v12_signatures.py` | V12 physics verification |
 
-> **Note on Raw Data Quality:** IONIS is intentionally developed using "Field-Observed" WSPR data. Previous iterations identified a ~14% artifact rate where actual frequency values (Hz/MHz) leaked into the Band ID column. Phase 3 implements strict range-bound filtering to mitigate these artifacts while maintaining the "noisy" reality of a global distributed sensor network.
+## Models
 
+| Checkpoint | Description |
+|------------|-------------|
+| `ionis_v13_combined.pth` | **Production** — V13 Multi-Source Hybrid |
+| `ionis_v13_1_combined.pth` | Experiment — 25x upsampling (78.75% recall) |
+| `ionis_v12_signatures.pth` | V12 — WSPR signatures only |
 
-#### **Performance Baseline (Phase 2)**
+## Usage
 
-* **Dataset:** 10,000,000 rows (Solar Cycle 25: 2020–2026).
-* **Best Validation RMSE:** **8.04 dB**
-* **Training Time:** ~30-45 minutes on M3 Ultra.
+### Prerequisites
+- Python 3.10+
+- PyTorch 2.x with MPS (Apple Silicon) or CUDA
+- ClickHouse access (10.60.1.1 via DAC or 192.168.1.90 LAN)
 
-#### **Current Objectives (Phase 3: The Purge)**
+### Training V13
+```bash
+cd ki7mt-ai-lab-training
+python scripts/train_v13_combined.py
+```
 
-We are currently refining the model to eliminate "inverted solar physics" caused by raw data noise. By implementing strict physical filters, we are moving from a raw archive to a "Clean Signal" dataset:
+### Running Validation
+```bash
+# Physics verification
+python scripts/verify_v13_combined.py
 
-* **SNR Clipping:** -35 dB to +25 dB (removing software artifacts).
-* **Path Filtering:** > 500 km (focusing strictly on Skywave propagation).
-* **Band Validation:** 1.8 MHz to 50 MHz (excluding data-leakage artifacts).
+# Sensitivity analysis
+python scripts/test_v13_combined.py
+
+# Step I comparison (requires ClickHouse)
+python scripts/validate_v13_step_i.py
+```
+
+## Data Requirements
+
+Training pulls directly from ClickHouse:
+- `wspr.signatures_v1` — 93.4M aggregated WSPR signatures
+- `rbn.dxpedition_signatures` — 91K RBN DXpedition signatures
+- `solar.bronze` — Solar indices (SFI, Kp, SSN)
+
+## Model Lineage
+
+```
+V2 → V6 (monotonic) → V7 (lobotomy) → V8 (sidecar) →
+V9 (dual mono) → V10 (final) → V11 (gates) → V12 (signatures) → V13 (combined)
+```
+
+## Related Repositories
+
+| Repository | Purpose |
+|------------|---------|
+| [ki7mt-ai-lab-docs](https://github.com/KI7MT/ki7mt-ai-lab-docs) | Documentation site |
+| [ki7mt-ai-lab-apps](https://github.com/KI7MT/ki7mt-ai-lab-apps) | Go data ingesters |
+| [ki7mt-ai-lab-core](https://github.com/KI7MT/ki7mt-ai-lab-core) | DDL schemas, SQL |
+| [ki7mt-ai-lab-cuda](https://github.com/KI7MT/ki7mt-ai-lab-cuda) | CUDA signature engine |
+
+## License
+
+GPLv3 — See [COPYING](COPYING) for details.
+
+## Author
+
+Greg Beam, KI7MT
 
 ---
 
-### **How to Use**
-
-1. **Training:** Run `python scripts/train_v2_pilot.py` to ingest 10M rows from ClickHouse and generate `models/ionis_v2.pth`.
-2. **Validation:** Run `python scripts/test_v2_sensitivity.py` to execute a "Solar Sweep" and verify that the model respects ionospheric laws (SSN/SNR correlation).
+*Training infrastructure for HF propagation prediction based on real-world observations.*
