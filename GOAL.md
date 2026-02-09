@@ -2,10 +2,10 @@
 
 ## The Vision
 
-Build a propagation prediction tool that beats VOACAP — not sometimes, not
-marginally, but every time and by a substantial margin. No lab physics.
-No theoretical ionospheric models. Built entirely on real-world measurements:
-10.8 billion WSPR spots and solar data.
+Build a propagation prediction tool that improves on the ITS/NTIA reference
+model (VOACAP) — not occasionally, not marginally, but consistently and
+substantially. No lab physics. No theoretical ionospheric models. Built
+entirely on real-world measurements: 10.8 billion WSPR spots and solar data.
 
 The approach is inspired by Critical Dimension Scatterometry (CDS) in
 semiconductor metrology. In CDS, you measure a diffraction signature from a
@@ -73,13 +73,14 @@ library has the receipts. Together, they solve the inverse problem.
 ## The Goal (Z)
 
 Given a path, band, time, and solar conditions — produce a propagation
-prediction that beats VOACAP. Every time. By a substantial margin.
+prediction that consistently outperforms the reference model.
 
-**What "beating VOACAP" looks like:**
+**What "outperforming the reference" looks like:**
 
-Take real paths on real days. Ask VOACAP what it predicts. Ask IONIS what it
-predicts. Compare both to what actually happened (the WSPR spots we recorded).
-Whoever is closer, more often, wins.
+Take real paths on real days. Query both the reference model (VOACAP) and
+IONIS. Compare predictions to what actually happened (the WSPR spots we
+recorded). The model with better correlation to reality, more consistently,
+demonstrates the improvement.
 
 Metrics:
 - Pearson correlation with actual median SNR per path/band/hour
@@ -88,13 +89,13 @@ Metrics:
 - Temporal responsiveness: can it react to today's solar conditions,
   not last month's median?
 
-## Why We Win
+## Our Advantages
 
-VOACAP is locked into 1960s ionosonde theory — monthly medians, Chapman
-layers, static models. It cannot adapt. That's not a software problem — the
-theory is the ceiling.
+The ITS/NTIA reference model (VOACAP) represents foundational ionospheric
+science from the 1960s — monthly medians, Chapman layers, carefully calibrated
+theoretical models. It remains the standard for good reason.
 
-We have three advantages VOACAP will never have:
+IONIS builds on that foundation with three complementary advantages:
 
 1. **Real-world signatures** — not theory, 10.8B actual observations
 2. **Ground truth validation** — millions of contest QSOs proving what worked
@@ -140,8 +141,8 @@ the prediction from "what's the SNR?" into what operators actually care about:
 ## What Comes Next
 
 This document goes to Gemini for a physics-informed roadmap: the concrete
-steps from D (correct physics, not useful yet) to Z (beats VOACAP decisively),
-in plain language, with a pass/fail test at each step.
+steps from D (correct physics, not useful yet) to Z (consistently outperforms
+the reference model), in plain language, with a pass/fail test at each step.
 
 The steps might change as we learn. The goal doesn't.
 
