@@ -64,6 +64,17 @@ IonisV12Gate (203,573 params)
 | `ionis_v13_1_combined.pth` | Experiment — 25x upsampling (78.75% recall) |
 | `ionis_v12_signatures.pth` | V12 — WSPR signatures only |
 
+## Reports
+
+Detailed model cards with architecture, physics verification, and performance metrics.
+
+| Report | Model |
+|--------|-------|
+| [V13 Final Report](reports/IONIS_V13_FINAL_REPORT.md) | Multi-Source Hybrid (production) |
+| [V12 Final Report](reports/IONIS_V12_FINAL_REPORT.md) | Aggregated Signatures |
+| [V11 Final Report](reports/IONIS_V11_FINAL_REPORT.md) | Gatekeeper (gates introduced) |
+| [V10 Final Report](reports/IONIS_V10_FINAL_REPORT.md) | Dual Monotonic Sidecars |
+
 ## Usage
 
 ### Prerequisites
