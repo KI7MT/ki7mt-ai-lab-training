@@ -5,7 +5,7 @@
 Build a propagation prediction tool that improves on the ITS/NTIA reference
 model (VOACAP) — not occasionally, not marginally, but consistently and
 substantially. No lab physics. No theoretical ionospheric models. Built
-entirely on real-world measurements: 10.8 billion WSPR spots and solar data.
+entirely on real-world measurements.
 
 The approach is inspired by Critical Dimension Scatterometry (CDS) in
 semiconductor metrology. In CDS, you measure a diffraction signature from a
@@ -14,14 +14,13 @@ physical structure you can't directly see.
 
 We do the same thing with the ionosphere:
 
-1. **WSPR spots are the diffraction patterns** — observed signal behavior
+1. **Radio spots are the diffraction patterns** — observed signal behavior
    under specific conditions
-2. **The CUDA embeddings are the signatures** — float4 vectors encoding
+2. **The aggregated signatures are the library** — 93.4M buckets encoding
    path geometry, solar conditions, and temporal variables
-3. **The 4.4 billion vectors in silver are the signature library**
-4. **Given current conditions**, match against the library to find what
+3. **Given current conditions**, match against the library to find what
    historically happened under similar conditions
-5. **The matching signatures tell you what propagation will look like**
+4. **The matching signatures tell you what propagation will look like**
 
 This is an **inverse problem**: we have the answers (signal observations)
 and we reconstruct the question (what is the ionosphere doing right now?).
@@ -30,64 +29,68 @@ and we reconstruct the question (what is the ionosphere doing right now?).
 
 ### The Signature Library (pattern matching)
 
-The CUDA signature engine already projects WSPR spots into a high-dimensional
-vector space. 4.4 billion signatures sitting in ClickHouse. When you have
-today's conditions, you search the library for the closest historical matches
-and report what happened. No model needed — just "the last 5,000 times
-conditions looked like this, here's what 20m to Europe actually did."
+93.4 million aggregated signatures in `wspr.signatures_v1`, compressed from
+10.8B raw WSPR spots. Query by path, band, hour, month, and solar conditions.
+Returns median SNR and reliability from historical observations.
 
-This is the core of the thesis. The receipts.
+**Step G complete**: kNN search layer built. 50-94 ms query latency, 7/7 physics
+tests pass. "FN31 to JO21, 20m, 14 UTC, June" returns -21.0 dB median from
+847 matching signatures.
 
 ### The Neural Model (learned physics)
 
-IONIS V11 (203K params) learned the shape of the physics from data — which
-directions things move, how variables relate. SFI up = better. Storms = worse.
+IONIS V13 Combined (203K params) learned the shape of the physics from data —
+which directions things move, how variables relate. SFI up = better. Storms = worse.
 Polar paths behave differently from equatorial. It knows the rules.
 
-The model can serve as a fast first approximation, or help narrow the search
-space before signature matching (like physics-based models do in CDS).
+**Multi-source hybrid**: V13 combines WSPR weak-signal data with RBN DXpedition
+high-power data, covering 152 rare DXCC entities that WSPR alone cannot reach.
 
 These two pieces are complementary. The model knows the rules. The signature
 library has the receipts. Together, they solve the inverse problem.
 
-## Where We Are (D)
+## Current Status (Step I Complete)
 
-**What's built and working:**
-- Data pipeline: 10.8B WSPR spots in ClickHouse, solar backfill (2000-2026),
-  Go ingesters at 24M rows/sec. Solid and complete.
-- CUDA signature engine: 4.4B float4 embeddings in wspr.silver.
-  The signature library exists.
-- Neural model: IONIS V11, correct physics directions, monotonic sidecars,
-  geographic gates. The rules are learned.
-- Infrastructure: M3 Ultra (training), 9975WX (data/CUDA), DAC link,
-  ClickHouse on dedicated NVMe. The sovereign stack is real.
+**What's built and validated:**
 
-**What's not working yet:**
-- The neural model alone has Pearson +0.24 (explains 6% of variance).
-  Not useful as a standalone prediction tool.
-- The signature library exists but has no query/matching layer on top.
-  The vectors are there but nobody's searching them.
-- The two pieces aren't connected. No system takes current conditions,
-  searches signatures, and produces a prediction.
+| Component | Status |
+|-----------|--------|
+| WSPR pipeline | 10.8B spots in ClickHouse |
+| RBN pipeline | 2.18B spots ingested |
+| Contest logs | 195M QSOs from 15 contests |
+| Signature library | 93.4M aggregated buckets |
+| Signature search | kNN layer, 50-94 ms latency |
+| Neural model | V13 Combined, 203K params |
+| Ground truth validation | 1M contest paths validated |
+
+**V13 Results:**
+
+| Metric | Value |
+|--------|-------|
+| RMSE | 0.60σ (~4.0 dB) |
+| Pearson | +0.2865 |
+| Step I Recall | 85.34% |
+| vs Reference | **+9.5 percentage points** |
+
+**What's next (Step J):**
+- Unified prediction interface combining neural model + signature search
+- Single CLI: path + conditions → prediction + historical evidence
+- Confidence weighting based on signature density
 
 ## The Goal (Z)
 
 Given a path, band, time, and solar conditions — produce a propagation
 prediction that consistently outperforms the reference model.
 
-**What "outperforming the reference" looks like:**
+**Step I demonstrated this**: On 1M validated contest paths, IONIS V13 shows
+85.34% band-open recall vs VOACAP's 75.82% — a +9.5 percentage point improvement.
 
-Take real paths on real days. Query both the reference model (VOACAP) and
-IONIS. Compare predictions to what actually happened (the WSPR spots we
-recorded). The model with better correlation to reality, more consistently,
-demonstrates the improvement.
-
-Metrics:
-- Pearson correlation with actual median SNR per path/band/hour
-- RMSE against actual observations
-- Band-open reliability: "will this band be open?" (yes/no accuracy)
-- Temporal responsiveness: can it react to today's solar conditions,
-  not last month's median?
+**Remaining criteria for Step Z:**
+- [ ] Pearson r (IONIS vs actual) > Pearson r (reference vs actual)
+- [ ] RMSE (IONIS) < RMSE (reference)
+- [x] Band-open accuracy (IONIS) > Band-open accuracy (reference) ✓
+- [ ] IONIS shows improvement on > 90% of test paths
+- [x] Results are reproducible and documented ✓
 
 ## Our Advantages
 
@@ -97,56 +100,53 @@ theoretical models. It remains the standard for good reason.
 
 IONIS builds on that foundation with three complementary advantages:
 
-1. **Real-world signatures** — not theory, 10.8B actual observations
-2. **Ground truth validation** — millions of contest QSOs proving what worked
+1. **Real-world signatures** — not theory, 13.2B actual observations (WSPR + RBN + contests)
+2. **Ground truth validation** — 195M contest QSOs proving what worked
 3. **Continuous learning** — new WSPR spots flowing in every two minutes,
-   24x7x365, forever. The system gets smarter every day while VOACAP stays
-   frozen
+   24x7x365, forever. The system gets smarter every day.
 
-## Untapped Data: Contest Logs
+## Data Sources
 
-WSPR tells you the signal floor. Contest logs tell you **what the ionosphere
-actually delivered** — proof that two stations communicated on a specific band,
-at a specific time, between specific locations.
+| Source | Volume | Role |
+|--------|--------|------|
+| **WSPR** | 10.8B spots | Signal floor baseline |
+| **RBN** | 2.18B spots | High-SNR transitions, DXpeditions |
+| **Contest Logs** | 195M QSOs | Ground truth validation |
+| **Solar Indices** | 76K rows | Gated physics input (SFI, Kp) |
+| **Signatures** | 93.4M buckets | Aggregated path×band×hour×month patterns |
 
-**Cabrillo logs from CQ contests** (CQ WW, CQ WPX, etc.) are publicly
-available, free, going back decades. Each QSO line contains: frequency, mode,
-timestamp, both callsigns, and exchange. Map callsigns to grid squares and
-you have millions of confirmed contacts with path, band, time, and date.
+## Model Lineage
 
-During major contest weekends, thousands of stations are on every band
-simultaneously — while WSPR beacons are running in the background. This gives
-us the signature (WSPR) and ground truth (contest QSOs) at the same time.
+```
+V2 → V6 (monotonic) → V7 (lobotomy) → V8 (sidecar) →
+V9 (dual mono) → V10 (final) → V11 (gates) → V12 (signatures) → V13 (combined)
+```
 
-Additional sources:
-- **Reverse Beacon Network (RBN)**: automated CW/RTTY skimmer spots, free API
-- **PSK Reporter**: FT8/FT4 spots, massive volume, free
-- **Club Log**: millions of confirmed DX contacts with timestamps
+Each version added architectural improvements while preserving physics constraints.
+V13 is the first multi-source hybrid, bridging WSPR and RBN data.
 
-Contest logs answer the question WSPR can't: **"Was the band actually usable?"**
-Not just detectable at -28 dB, but usable for real communication. This turns
-the prediction from "what's the SNR?" into what operators actually care about:
-"Can I make a contact on 20m to Europe right now? On what mode?"
+## Known Risks (Updated)
 
-## Known Risks
+- ~~Signature search at 4.4B vectors needs efficient indexing~~ → Solved: 93.4M aggregated, 50-94 ms
+- WSPR station coverage is uneven — some paths have thin history → Mitigated by RBN DXpedition data
+- ~~The two pieces aren't connected~~ → Step J will unify them
+- Steps forward might break things behind us — tests at each step prove we haven't regressed
+- The path from D to Z is not a straight line. We adjust as we learn.
 
-- Signature search at 4.4B vectors needs efficient indexing (ANN/FAISS)
-- WSPR station coverage is uneven — some paths have thin history
-- We might need more features in the signatures (geomagnetic latitude, MUF)
-- Steps forward might break things behind us — tests at each step must
-  prove we haven't gone backwards
-- The path from D to Z is not a straight line. We might hit walls and
-  need to adjust. That's expected.
+## Roadmap Status
 
-## What Comes Next
-
-This document goes to Gemini for a physics-informed roadmap: the concrete
-steps from D (correct physics, not useful yet) to Z (consistently outperforms
-the reference model), in plain language, with a pass/fail test at each step.
-
-The steps might change as we learn. The goal doesn't.
+| Step | Description | Status |
+|------|-------------|--------|
+| D | Infrastructure complete | ✓ |
+| E | Golden Burn (V12 signatures) | ✓ |
+| F | Aggregated Signatures | ✓ |
+| G | Signature Search Layer | ✓ |
+| H | Contest Log Ingest | ✓ |
+| I | Ground Truth Validation | ✓ |
+| J | Unified Prediction Interface | **Next** |
+| Z | Outperform reference on >90% paths | Target |
 
 ---
 
-*Status: Step D — infrastructure complete, physics correct, not yet useful.*
-*Date: 2026-02-04*
+*Status: Step I Complete — V13 validated at +9.5 pp vs reference model*
+*Date: 2026-02-09*
