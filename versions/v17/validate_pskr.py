@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """
-validate_pskr.py — PSK Reporter Live Validation for IONIS V16
+validate_pskr.py — PSK Reporter Live Validation for IONIS V17
 
-Validates IONIS V16 predictions against PSK Reporter observations.
+Validates IONIS V17 predictions against PSK Reporter observations.
 This is the "acid test" — comparing predictions against data the model
 has never seen, from an independent source.
+
+V17: RBN grid-enriched training (51M rows: WSPR + RBN + Contest + DXpedition)
 
 Usage:
     python validate_pskr.py [--data-dir /path/to/pskr-data] [--sample N]
 
 Requirements:
     - PSK Reporter JSONL.gz files (from pskr-collector)
-    - V16 checkpoint (../v16/ionis_v16.pth)
+    - V17 checkpoint (ionis_v17.pth)
     - Solar data from ClickHouse for validation period
 """
 
@@ -37,11 +39,11 @@ import torch.nn as nn
 # Default paths
 DEFAULT_DATA_DIR = "/tmp/pskr-validation"
 SCRIPT_DIR = Path(__file__).parent
-V16_CHECKPOINT = SCRIPT_DIR.parent / "v16" / "ionis_v16.pth"
+V17_CHECKPOINT = SCRIPT_DIR / "ionis_v17.pth"
 
 # Also try models/ directory
-if not V16_CHECKPOINT.exists():
-    V16_CHECKPOINT = SCRIPT_DIR.parent.parent / "models" / "ionis_v16.pth"
+if not V17_CHECKPOINT.exists():
+    V17_CHECKPOINT = SCRIPT_DIR.parent.parent / "models" / "ionis_v17.pth"
 
 DEVICE = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
@@ -90,7 +92,7 @@ BAND_NAMES = {
 }
 
 # ============================================================================
-# Model Architecture (IonisV16Gate - must match training exactly)
+# Model Architecture (IonisV12Gate - must match training exactly)
 # ============================================================================
 
 class MonotonicMLP(nn.Module):
@@ -113,9 +115,9 @@ def _gate(x):
     return 0.5 + 1.5 * torch.sigmoid(x)
 
 
-class IonisV16Gate(nn.Module):
+class IonisV12Gate(nn.Module):
     """
-    V16 architecture with gated monotonic sidecars.
+    V17 architecture with gated monotonic sidecars (same as V12-V16).
     Must match training exactly.
     """
     def __init__(self, dnn_dim=11, sidecar_hidden=8):
@@ -208,7 +210,7 @@ def haversine_km(lat1, lon1, lat2, lon2):
 
 def compute_features(tx_lat, tx_lon, rx_lat, rx_lon, freq_mhz, hour, month, sfi, kp):
     """
-    Compute the 13 input features for IonisV16Gate.
+    Compute the 13 input features for IonisV12Gate.
     Must match training feature engineering exactly.
     """
     # Normalize coordinates
@@ -342,7 +344,7 @@ def get_solar_for_date(date_str: str) -> tuple:
 # Validation
 # ============================================================================
 
-def validate_v16(spots: list, model: nn.Module, snr_mean: float, snr_std: float,
+def validate_v17(spots: list, model: nn.Module, snr_mean: float, snr_std: float,
                  sfi: float, kp: float, sample_size: int = None):
     """
     Validate V16 predictions against PSK Reporter spots.
@@ -440,7 +442,7 @@ def validate_v16(spots: list, model: nn.Module, snr_mean: float, snr_std: float,
     overall_recall = 100 * total_hits / total_spots if total_spots > 0 else 0
 
     print(f"\n{'='*60}")
-    print(f"IONIS V16 vs PSK Reporter — Validation Results")
+    print(f"IONIS V17 vs PSK Reporter — Validation Results")
     print(f"{'='*60}")
     print(f"Total spots validated: {total_spots:,}")
     print(f"Skipped (invalid grid/band): {skipped:,}")
@@ -475,7 +477,7 @@ def validate_v16(spots: list, model: nn.Module, snr_mean: float, snr_std: float,
 # ============================================================================
 
 def main():
-    parser = argparse.ArgumentParser(description="Validate IONIS V16 against PSK Reporter")
+    parser = argparse.ArgumentParser(description="Validate IONIS V17 against PSK Reporter")
     parser.add_argument("--data-dir", default=DEFAULT_DATA_DIR,
                         help="Directory containing spots-*.jsonl.gz files")
     parser.add_argument("--sample", type=int, default=100000,
@@ -489,15 +491,15 @@ def main():
     args = parser.parse_args()
 
     # Load model
-    print(f"Loading V16 checkpoint from {V16_CHECKPOINT}...")
-    if not V16_CHECKPOINT.exists():
-        print(f"Error: Checkpoint not found at {V16_CHECKPOINT}")
+    print(f"Loading V17 checkpoint from {V17_CHECKPOINT}...")
+    if not V17_CHECKPOINT.exists():
+        print(f"Error: Checkpoint not found at {V17_CHECKPOINT}")
         print("Tried:")
         print(f"  - {SCRIPT_DIR.parent / 'v16' / 'ionis_v16.pth'}")
         print(f"  - {SCRIPT_DIR.parent.parent / 'models' / 'ionis_v16.pth'}")
         sys.exit(1)
 
-    checkpoint = torch.load(V16_CHECKPOINT, map_location=DEVICE, weights_only=False)
+    checkpoint = torch.load(V17_CHECKPOINT, map_location=DEVICE, weights_only=False)
 
     # Get model config from checkpoint
     dnn_dim = checkpoint.get('dnn_dim', DNN_DIM)
@@ -506,11 +508,11 @@ def main():
     snr_std = checkpoint.get('snr_std', 1.0)
 
     # Create and load model
-    model = IonisV16Gate(dnn_dim=dnn_dim, sidecar_hidden=sidecar_hidden).to(DEVICE)
+    model = IonisV12Gate(dnn_dim=dnn_dim, sidecar_hidden=sidecar_hidden).to(DEVICE)
     model.load_state_dict(checkpoint['model_state'])
     model.eval()
 
-    print(f"  Architecture: IonisV16Gate (dnn_dim={dnn_dim}, sidecar_hidden={sidecar_hidden})")
+    print(f"  Architecture: IonisV12Gate (dnn_dim={dnn_dim}, sidecar_hidden={sidecar_hidden})")
     print(f"  SNR normalization: mean={snr_mean:.2f}, std={snr_std:.2f}")
     print(f"  Device: {DEVICE}")
 
@@ -533,7 +535,7 @@ def main():
 
     # Validate
     sample_size = args.sample if args.sample > 0 else None
-    results = validate_v16(spots, model, snr_mean, snr_std, sfi, kp, sample_size)
+    results = validate_v17(spots, model, snr_mean, snr_std, sfi, kp, sample_size)
 
     print(f"\n{'='*60}")
     print("Validation complete.")
