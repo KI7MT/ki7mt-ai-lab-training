@@ -4,19 +4,52 @@ PyTorch training and validation for the **IONIS** (Ionospheric Neural Inference 
 
 ## Current Model
 
-**IONIS V13 Combined** — Multi-Source Hybrid
+**IONIS V16 Contest** — Curriculum Learning with Contest Anchoring
 - 203,573 parameters (IonisV12Gate architecture)
-- Trained on 20M WSPR + 91K RBN DXpedition signatures
-- Per-source per-band Z-score normalization
-- 152 rare DXCC entities covered
+- Trained on WSPR (floor) + RBN DXpedition (rare paths) + Contest (ceiling)
+- Curriculum learning: -28 dB floor first, then +10 dB ceiling
 
 | Metric | Value |
 |--------|-------|
-| RMSE | 0.60σ (~4.0 dB) |
-| Pearson | +0.2865 |
-| SFI benefit (70→200) | +5.2 dB |
-| Kp storm cost (0→9) | +10.4 dB |
-| Step I Recall | 85.34% (+9.5 pp vs reference) |
+| Overall Recall | **96.38%** (+20.56 pp vs VOACAP) |
+| SSB Recall | **98.40%** |
+| Pearson | +0.4873 |
+| RMSE | 0.860σ |
+| Oracle Tests | 35/35 PASS |
+
+## Repository Structure
+
+```
+ki7mt-ai-lab-training/
+├── versions/           # Self-contained version folders
+│   ├── v12/           # WSPR signatures (baseline)
+│   ├── v13/           # + RBN DXpedition
+│   ├── v14/           # WSPR-only A/B test
+│   ├── v15/           # Clean filter + DXpedition
+│   ├── v16/           # + Contest anchoring (current)
+│   └── archive/       # v10, v11, and experiments
+├── scripts/           # Shared utilities
+│   ├── signature_search.py   # kNN search over 93.4M signatures
+│   ├── predict.py            # Generic prediction interface
+│   ├── voacap_batch_runner.py # VOACAP comparison harness
+│   └── coverage_heatmap.py   # Grid coverage visualization
+├── models/            # Canonical checkpoints (ionis_vxx.pth)
+├── GOAL.md           # Project vision
+└── README.md         # This file
+```
+
+Each version folder is self-contained:
+```
+versions/v16/
+├── train_v16.py       # Training script
+├── validate_v16.py    # Step I recall validation
+├── verify_v16.py      # Physics verification
+├── test_v16.py        # Sensitivity analysis
+├── oracle_v16.py      # Production oracle (35 tests)
+├── ionis_v16.pth      # Model checkpoint
+├── README.md          # Checklist and summary
+└── REPORT_v16.md      # Final report
+```
 
 ## Architecture
 
@@ -32,87 +65,40 @@ IonisV12Gate (203,573 params)
 
 **Key innovation:** Gated monotonic sidecars enforce physics constraints (SFI+, Kp-) while allowing geographic modulation of sensitivity.
 
-## Scripts
+## Model Evolution
 
-### Training
-| Script | Purpose |
-|--------|---------|
-| `train_v13_combined.py` | V13: WSPR + RBN DXpedition (production) |
-| `train_v12_signatures.py` | V12: WSPR signatures only |
-| `train_v13_1_combined.py` | V13.1: 25x upsampling experiment |
+| Version | Innovation | Recall |
+|---------|------------|--------|
+| V12 | Aggregated signatures | — |
+| V13 | + RBN DXpedition | 85.34% |
+| V14 | WSPR-only (A/B test) | 76.00% |
+| V15 | Clean balloon filter | 86.89% |
+| **V16** | **+ Contest anchoring** | **96.38%** |
 
-### Validation
-| Script | Purpose |
-|--------|---------|
-| `test_v13_combined.py` | V13 sensitivity analysis |
-| `verify_v13_combined.py` | V13 physics verification (4/4 pass) |
-| `validate_v13_step_i.py` | Step I: 1M contest path validation |
-| `signature_search.py` | kNN search over 93.4M signatures |
-
-### Legacy
-| Script | Purpose |
-|--------|---------|
-| `oracle_v12.py` | V12 inference + 35-test physics suite |
-| `test_v12_signatures.py` | V12 sensitivity analysis |
-| `verify_v12_signatures.py` | V12 physics verification |
-
-## Models
-
-| Checkpoint | Description |
-|------------|-------------|
-| `ionis_v13_combined.pth` | **Production** — V13 Multi-Source Hybrid |
-| `ionis_v13_1_combined.pth` | Experiment — 25x upsampling (78.75% recall) |
-| `ionis_v12_signatures.pth` | V12 — WSPR signatures only |
-
-## Reports
-
-Detailed model cards with architecture, physics verification, and performance metrics.
-
-| Report | Model |
-|--------|-------|
-| [V13 Final Report](reports/IONIS_V13_FINAL_REPORT.md) | Multi-Source Hybrid (production) |
-| [V12 Final Report](reports/IONIS_V12_FINAL_REPORT.md) | Aggregated Signatures |
-| [V11 Final Report](reports/IONIS_V11_FINAL_REPORT.md) | Gatekeeper (gates introduced) |
-| [V10 Final Report](reports/IONIS_V10_FINAL_REPORT.md) | Dual Monotonic Sidecars |
-
-## Usage
+## Quick Start
 
 ### Prerequisites
-- Python 3.10+
-- PyTorch 2.x with MPS (Apple Silicon) or CUDA
+- Python 3.10+ with PyTorch 2.x
 - ClickHouse access (10.60.1.1 via DAC or 192.168.1.90 LAN)
+- Required tables: `wspr.signatures_v2_terrestrial`, `rbn.dxpedition_signatures`, `contest.signatures`
 
-### Training V13
+### Reproduce V16
 ```bash
-cd ki7mt-ai-lab-training
-python scripts/train_v13_combined.py
+cd versions/v16
+python train_v16.py          # ~3.5 hours on M3 Ultra
+python validate_v16.py       # Step I recall (96.38%)
+python verify_v16.py         # Physics verification
+python test_v16.py           # Sensitivity analysis
+python oracle_v16.py --test  # 35/35 tests
 ```
 
-### Running Validation
-```bash
-# Physics verification
-python scripts/verify_v13_combined.py
+## Data Sources
 
-# Sensitivity analysis
-python scripts/test_v13_combined.py
-
-# Step I comparison (requires ClickHouse)
-python scripts/validate_v13_step_i.py
-```
-
-## Data Requirements
-
-Training pulls directly from ClickHouse:
-- `wspr.signatures_v1` — 93.4M aggregated WSPR signatures
-- `rbn.dxpedition_signatures` — 91K RBN DXpedition signatures
-- `solar.bronze` — Solar indices (SFI, Kp, SSN)
-
-## Model Lineage
-
-```
-V2 → V6 (monotonic) → V7 (lobotomy) → V8 (sidecar) →
-V9 (dual mono) → V10 (final) → V11 (gates) → V12 (signatures) → V13 (combined)
-```
+| Source | Table | Rows | Purpose |
+|--------|-------|------|---------|
+| WSPR | `wspr.signatures_v2_terrestrial` | 93.3M | Floor (-28 dB) |
+| RBN | `rbn.dxpedition_signatures` | 91K | Rare paths (152 DXCC) |
+| Contest | `contest.signatures` | 6.34M | Ceiling (+10 dB SSB) |
 
 ## Related Repositories
 
