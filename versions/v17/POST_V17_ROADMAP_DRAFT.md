@@ -3,6 +3,8 @@
 > For review by 9975WX and Gemini Pro. Created 2026-02-10 during V17 training.
 >
 > **Rev 2**: Incorporated 9975WX feedback on Kp sign convention, VOACAP, solar indices, grey-line, NVIS.
+>
+> **Rev 5**: Gemini Pro architectural review — APPROVED. Added drift alerts, dual CW thresholds, terminator sidecar spec.
 
 ## Executive Summary
 
@@ -22,9 +24,9 @@ V16 achieved the D-to-Z goal: outperform VOACAP on standardized tests. V17 adds 
 | RMSE | 0.860σ | ≤ 0.860σ | > 0.90σ |
 | PSK Reporter Recall | 84.14% | ≥ 84% | < 80% |
 | Physics (SFI+) | +0.48σ | +0.4 to +0.9σ | < 0 or > 2.0 |
-| Physics (Kp9-) | -3.45σ | ≤ -2.0σ | > 0 (inverted) |
+| Physics (Kp9-) | -3.45σ | ≤ -2.0σ | ≤ 0 (inverted) |
 
-**Note on Kp9- sign**: Negative value means storms COST SNR (correct physics). Positive would mean storms help propagation, which is inverted/wrong.
+**Note on Kp9- sign**: Negative value means storms COST SNR (correct physics). If coefficient hits zero or goes positive, model has lost physical understanding of geomagnetic damping — likely overfitting on high-SFI/high-Kp noise from solar peak. (Gemini)
 
 ### Validation Tests
 
@@ -73,7 +75,11 @@ POST /predict
     "modes": {
       "WSPR": {"viable": true, "margin_db": 40.3},
       "FT8":  {"viable": true, "margin_db": 32.3},
-      "CW":   {"viable": true, "margin_db": 22.3},
+      "CW":   {
+        "viable_human": true,    // -10 dB threshold
+        "viable_machine": true,  // -18 dB threshold
+        "margin_db": 22.3
+      },
       "RTTY": {"viable": true, "margin_db": 17.3},
       "SSB":  {"viable": true, "margin_db": 7.3}
     }
@@ -82,10 +88,10 @@ POST /predict
 
 **Product Definition**: "Can I work this path right now, on my mode?" One forward pass, six answers.
 
-Mode thresholds (from V16 calibration):
-- WSPR: -28 dB, FT8: -20 dB, CW: -10 dB*, RTTY: -5 dB, SSB: +5 dB
+**CW Dual Threshold (Gemini recommendation)**: Expose both human (-10 dB) and machine (-18 dB) thresholds. Amateur radio is moving toward "cyborg" state — operator listens while skimmer runs in background. API tells user: *"You won't hear this, but your software will decode it."*
 
-*CW threshold note: V16.1 validation uses -18 dB (skimmer sensitivity), but product definition uses -10 dB (human operator threshold). Decide which to expose in API.
+Mode thresholds:
+- WSPR: -28 dB, FT8: -20 dB, CW: -10 dB (human) / -18 dB (machine), RTTY: -5 dB, SSB: +5 dB
 
 **Stack**: FastAPI + ONNX Runtime on 9975WX (RTX PRO 6000 for batch inference)
 
@@ -107,6 +113,10 @@ Mode thresholds (from V16 calibration):
 | Comparison metrics | ClickHouse | `validation.daily_summary` | Daily |
 
 **CRITICAL**: Live validation MUST use `wspr.live_conditions` (NOAA SWPC, 15-min updates), NOT `solar.bronze` (GFZ Potsdam, ~1 day lag). This matters during geomagnetic storms when Kp changes rapidly.
+
+**Nowcasting Note (Gemini)**: Real-time solar data has 1-2 hour lag from NOAA. Using live WSPR/PSK spots as proxy for real-time ionospheric density is the only way to achieve true nowcasting.
+
+**Drift Alert (Gemini recommendation)**: Z-Score Drift Alert — if mean error between IONIS and PSK firehose shifts by >2σ over rolling 4-hour window, trigger "Model Divergence" notification on 9975WX.
 
 **Success Metric**: IONIS Pearson ≥ VOACAP Pearson on rolling 7-day window.
 
@@ -145,23 +155,28 @@ Mode thresholds (from V16 calibration):
 
 **Recommendation**: Defer unless user demand is clear.
 
-### Option C: Grey-Line Specialization (HIGH VALUE)
+### Option C: Grey-Line Specialization (HIGH VALUE — GEMINI ENDORSED)
 
 **Trigger**: V17 still weak on sunrise/sunset predictions.
 
 **Current**: `day_night_est = cos(2π × (hour + midpoint_lon/15) / 24)` — crude approximation.
 
-**Recommended Enhancement**: Solar terminator distance (km from grey line)
-- **Cheap to compute**: Only needs solar declination + hour + path midpoint
-- **High physics value**: Directly models grey-line propagation enhancement
-- **NVIS synergy**: Could help 160m/80m where grey-line effects are strongest
+**Gemini Architecture**: Don't need a new model — add a **Terminator Distance Sidecar**.
+- Grey-line is the "Holy Grail" of HF operating
+- Traditional models (VOACAP) struggle because they use hourly averages
+- IONIS can leverage sub-second PSK Reporter timestamps to map exact SNR "surge" as terminator passes
+
+**Recommended Features**:
+- `dist_to_terminator_tx` — TX station distance to solar terminator (km, signed)
+- `dist_to_terminator_rx` — RX station distance to solar terminator (km, signed)
+- Model will latently learn the enhancement effect
 
 **Implementation**:
-1. Add `terminator_distance_km` feature (signed: negative=night side, positive=day side)
-2. Optionally add `terminator_crossing` flag (does path cross the terminator?)
-3. Retrain — low risk, 1-2 new features
+1. Compute terminator position from solar declination + hour
+2. Add 2 features per path endpoint
+3. Retrain — low risk, high value
 
-**9975WX Note**: This is a real opportunity. Operators actively exploit grey-line on 160m/80m.
+**9975WX Note**: Operators actively exploit grey-line on 160m/80m. This is a real opportunity.
 
 ### Option D: NVIS Gap Remediation
 
@@ -217,7 +232,8 @@ Mode thresholds (from V16 calibration):
 1. ~~**VOACAP Integration**: Do we run itshfbc locally or use an API? License?~~
    **ANSWERED**: Local `itshfbc` on 9975WX. GPL licensed. Already proven at 2,020 circuits/sec in Step K.
 
-2. **Alert System**: Who gets notified if IONIS drifts below VOACAP?
+2. ~~**Alert System**: Who gets notified if IONIS drifts below VOACAP?~~
+   **ANSWERED (Gemini)**: Z-Score Drift Alert. If mean error shifts >2σ over rolling 4-hour window → "Model Divergence" notification on 9975WX.
 
 3. **User Interface**: CLI only? Web dashboard? Ham radio logger integration?
 
@@ -241,4 +257,8 @@ Mode thresholds (from V16 calibration):
 
 ---
 
-*Draft by Claude-M3, 2026-02-10. Rev 2 incorporates 9975WX feedback. Pending Gemini Pro review.*
+*Draft by Claude-M3, 2026-02-10. Rev 5 incorporates 9975WX and Gemini Pro feedback.*
+
+**Status: APPROVED by Gemini Pro (Chief Architect)**
+
+*"V17 is the Engine of Record. The move to Phase 4 (Living Model Architecture) ensures that IONIS never becomes a static snapshot like the models that preceded it."*
