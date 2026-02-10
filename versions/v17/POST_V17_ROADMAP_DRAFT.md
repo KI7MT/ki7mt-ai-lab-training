@@ -24,7 +24,7 @@ V16 achieved the D-to-Z goal: outperform VOACAP on standardized tests. V17 adds 
 | RMSE | 0.860σ | ≤ 0.860σ | > 0.90σ |
 | PSK Reporter Recall | 84.14% | ≥ 84% | < 80% |
 | Physics (SFI+) | +0.48σ | +0.4 to +0.9σ | < 0 or > 2.0 |
-| Physics (Kp9-) | -3.45σ | ≤ -2.0σ | ≤ 0 (inverted) |
+| Physics (Kp9-) | -3.45σ | ≤ -2.0σ | > 0 (inverted) |
 
 **Note on Kp9- sign**: Negative value means storms COST SNR (correct physics). If coefficient hits zero or goes positive, model has lost physical understanding of geomagnetic damping — likely overfitting on high-SFI/high-Kp noise from solar peak. (Gemini)
 
