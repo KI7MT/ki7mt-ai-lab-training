@@ -2,7 +2,8 @@
 train_common.py — Shared training utilities for IONIS models
 
 This module contains all shared code for training:
-- Model architectures (IonisModel, MonotonicMLP)
+- Model architecture: IonisV12Gate (the sovereign architecture)
+- MonotonicMLP for physics-constrained sidecars
 - Feature engineering
 - Grid utilities
 - Dataset class
@@ -12,6 +13,10 @@ Version-specific training scripts should:
 1. Load their config from JSON
 2. Import from this module
 3. Call the training functions with their config
+
+NOTE: IonisModel was purged on 2026-02-11 per Chief Architect directive.
+      It used LayerNorm/GELU/Dropout which broke monotonic signal propagation.
+      IonisV12Gate is the only supported architecture.
 """
 
 import gc
@@ -132,125 +137,7 @@ class MonotonicMLP(nn.Module):
         return nn.functional.linear(h, w2, self.fc2.bias)
 
 
-class IonisModel(nn.Module):
-    """
-    Gated dual-sidecar architecture for HF propagation prediction.
-
-    Components:
-        - trunk: DNN for geography/time features
-        - sun_sidecar: MonotonicMLP for SFI effect
-        - storm_sidecar: MonotonicMLP for Kp effect
-        - sun_gate, storm_gate: Context-dependent gating
-
-    Args:
-        config: Dict with model parameters (dnn_dim, hidden_dim, sidecar_hidden, gate_init_bias)
-    """
-
-    def __init__(self, config):
-        super().__init__()
-
-        dnn_dim = config["model"]["dnn_dim"]
-        hidden = config["model"]["hidden_dim"]
-        sidecar_hidden = config["model"]["sidecar_hidden"]
-        gate_init_bias = config["model"]["gate_init_bias"]
-
-        # Store config for reference
-        self.config = config
-        self.dnn_dim = dnn_dim
-        self.hidden = hidden
-        self.sidecar_hidden = sidecar_hidden
-
-        # DNN for geography/time (starved of solar info)
-        self.trunk = nn.Sequential(
-            nn.Linear(dnn_dim, hidden * 2),
-            nn.LayerNorm(hidden * 2),
-            nn.GELU(),
-            nn.Dropout(0.1),
-            nn.Linear(hidden * 2, hidden),
-            nn.LayerNorm(hidden),
-            nn.GELU(),
-            nn.Dropout(0.1),
-            nn.Linear(hidden, hidden // 2),
-            nn.LayerNorm(hidden // 2),
-            nn.GELU(),
-            nn.Linear(hidden // 2, 1),
-        )
-
-        # Physics sidecars (monotonic)
-        self.sun_sidecar = MonotonicMLP(sidecar_hidden)
-        self.storm_sidecar = MonotonicMLP(sidecar_hidden)
-
-        # Gating networks
-        self.sun_gate = nn.Sequential(
-            nn.Linear(dnn_dim, 32),
-            nn.GELU(),
-            nn.Linear(32, 1),
-        )
-        self.storm_gate = nn.Sequential(
-            nn.Linear(dnn_dim, 32),
-            nn.GELU(),
-            nn.Linear(32, 1),
-        )
-
-        self._init_gates(gate_init_bias)
-
-    def _init_gates(self, gate_init_bias):
-        for gate in [self.sun_gate, self.storm_gate]:
-            if hasattr(gate[-1], 'bias') and gate[-1].bias is not None:
-                nn.init.constant_(gate[-1].bias, gate_init_bias)
-                gate[-1].bias.requires_grad = True
-            if hasattr(gate[-1], 'weight'):
-                nn.init.xavier_normal_(gate[-1].weight, gain=0.1)
-
-    def forward(self, x):
-        dnn_dim = self.config["model"]["dnn_dim"]
-        sfi_idx = self.config["model"]["sfi_idx"]
-        kp_idx = self.config["model"]["kp_penalty_idx"]
-
-        x_dnn = x[:, :dnn_dim]
-        sfi_in = x[:, sfi_idx:sfi_idx+1]
-        kp_penalty = x[:, kp_idx:kp_idx+1]
-
-        base = self.trunk(x_dnn)
-        sun_effect = self.sun_sidecar(sfi_in)
-        storm_effect = self.storm_sidecar(kp_penalty)
-
-        sun_g = torch.sigmoid(self.sun_gate(x_dnn)) + 0.5
-        storm_g = torch.sigmoid(self.storm_gate(x_dnn)) + 0.5
-
-        return base + sun_g * sun_effect + storm_g * storm_effect
-
-    def forward_with_components(self, x):
-        dnn_dim = self.config["model"]["dnn_dim"]
-        sfi_idx = self.config["model"]["sfi_idx"]
-        kp_idx = self.config["model"]["kp_penalty_idx"]
-
-        x_dnn = x[:, :dnn_dim]
-        sfi_in = x[:, sfi_idx:sfi_idx+1]
-        kp_penalty = x[:, kp_idx:kp_idx+1]
-
-        base = self.trunk(x_dnn)
-        sun_effect = self.sun_sidecar(sfi_in)
-        storm_effect = self.storm_sidecar(kp_penalty)
-
-        sun_g = torch.sigmoid(self.sun_gate(x_dnn)) + 0.5
-        storm_g = torch.sigmoid(self.storm_gate(x_dnn)) + 0.5
-
-        total = base + sun_g * sun_effect + storm_g * storm_effect
-        return total, base, sun_g, storm_g, sun_effect, storm_effect
-
-    def get_sun_effect(self, sfi_normalized, device):
-        with torch.no_grad():
-            inp = torch.tensor([[sfi_normalized]], dtype=torch.float32, device=device)
-            return self.sun_sidecar(inp).item()
-
-    def get_storm_effect(self, kp_penalty, device):
-        with torch.no_grad():
-            inp = torch.tensor([[kp_penalty]], dtype=torch.float32, device=device)
-            return self.storm_sidecar(inp).item()
-
-
-# ── V16 Production Model ─────────────────────────────────────────────────────
+# ── V16 Production Model (Sovereign Architecture) ────────────────────────────
 
 def _gate_v16(x):
     """V16 gate function: range 0.5 to 2.0"""
