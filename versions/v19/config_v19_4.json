@@ -1,0 +1,101 @@
+{
+  "version": "v19.4",
+  "phase": "V16 Recipe + Rosetta Stone",
+  "checkpoint": "ionis_v19_4.pth",
+
+  "model": {
+    "architecture": "IonisModel",
+    "dnn_dim": 11,
+    "hidden_dim": 256,
+    "sidecar_hidden": 8,
+    "input_dim": 13,
+    "sfi_idx": 11,
+    "kp_penalty_idx": 12,
+    "gate_init_bias": -0.693
+  },
+
+  "data": {
+    "wspr_sample": 20000000,
+    "rbn_full_sample": 0,
+    "rbn_dx_upsample": 50,
+    "contest_upsample": 1,
+    "storm_upsample": 20,
+    "normalization": "per_source"
+  },
+
+  "training": {
+    "epochs": 100,
+    "batch_size": 65536,
+    "val_split": 0.2,
+    "trunk_lr": 1e-5,
+    "sidecar_lr": 1e-3,
+    "weight_decay": 1e-5,
+    "lambda_var": 0.001
+  },
+
+  "features": [
+    "distance", "freq_log", "hour_sin", "hour_cos",
+    "az_sin", "az_cos", "lat_diff", "midpoint_lat",
+    "season_sin", "season_cos", "day_night_est",
+    "sfi", "kp_penalty"
+  ],
+
+  "band_to_hz": {
+    "102": 1836600,
+    "103": 3568600,
+    "104": 5287200,
+    "105": 7038600,
+    "106": 10138700,
+    "107": 14097100,
+    "108": 18104600,
+    "109": 21094600,
+    "110": 24924600,
+    "111": 28124600
+  },
+
+  "norm_constants": {
+    "wspr":    { "mean": -17.8, "std": 6.3 },
+    "rbn":     { "mean": 17.9, "std": 8.2 },
+    "contest": { "mean": 5.6, "std": 5.0 }
+  },
+
+  "mode_map": {
+    "wspr": "wspr",
+    "ft8": "wspr",
+    "ft4": "wspr",
+    "jt65": "wspr",
+    "jt9": "wspr",
+    "js8": "wspr",
+    "cw_machine": "rbn",
+    "cw_human": "contest",
+    "rtty": "rbn",
+    "ssb": "contest"
+  },
+
+  "thresholds": {
+    "wspr": -28.0,
+    "ft8": -20.0,
+    "ft4": -20.0,
+    "jt65": -24.0,
+    "jt9": -24.0,
+    "js8": -21.0,
+    "cw_human": -10.0,
+    "cw_machine": -18.0,
+    "rtty": -5.0,
+    "ssb": 5.0
+  },
+
+  "validation": {
+    "step_i_recall_min": 80.0,
+    "step_i_recall_max": 99.0,
+    "pskr_recall_min": 80.0,
+    "pskr_recall_max": 95.0,
+    "sfi_benefit_min": 0.10,
+    "kp_storm_min": 0.10
+  },
+
+  "clickhouse": {
+    "host": "10.60.1.1",
+    "port": 8123
+  }
+}

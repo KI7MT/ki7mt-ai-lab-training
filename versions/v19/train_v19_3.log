@@ -1,0 +1,76 @@
+09:49:41 | ======================================================================
+09:49:41 | IONIS v19.3 | Balanced RBN (5M Sample)
+09:49:41 | ======================================================================
+09:49:41 | Config: /Users/gbeam/workspace/ki7mt-ai-lab/ki7mt-ai-lab-training/versions/v19/config_v19_3.json
+09:49:41 | 
+09:49:41 | === TRAINING ===
+09:49:41 |   Device: mps
+09:49:41 |   Epochs: 100
+09:49:41 |   Batch size: 65,536
+09:49:41 |   Validation split: 20%
+09:49:41 | 
+09:49:41 | === DATA ===
+09:49:41 |   WSPR sample: 20,000,000
+09:49:41 |   RBN Full sample: 5,000,000
+09:49:41 |   RBN DX upsample: 50x
+09:49:41 |   Contest upsample: 1x
+09:49:41 |   Storm upsample: 20x (Kp >= 5)
+09:49:41 | 
+09:49:41 | === LEARNING RATES ===
+09:49:41 |   Trunk + Gates: 1e-05
+09:49:41 |   Sidecars: 0.001 (100x boost)
+09:49:41 |   Weight decay: 1e-05
+09:49:41 | 
+09:49:41 | === MODEL ===
+09:49:41 |   Architecture: IonisModel
+09:49:41 |   DNN dim: 11
+09:49:41 |   Hidden: 256 (trunk: 512→256→128→1)
+09:49:41 |   Sidecar hidden: 8
+09:49:41 | 
+09:49:41 | Connecting to ClickHouse at 10.60.1.1:8123...
+09:49:41 | wspr.signatures_v2_terrestrial: 93,339,408 rows available
+09:49:49 | wspr.signatures_v2_terrestrial: loaded 20,000,000 rows in 7.9s
+09:49:49 | rbn.signatures: 56,726,737 rows available
+09:49:51 | rbn.signatures: loaded 5,000,000 rows in 2.0s
+09:49:51 | rbn.dxpedition_signatures: 91,301 rows available
+09:49:52 | rbn.dxpedition_signatures: loaded 91,301 rows in 0.0s
+09:49:52 | contest.signatures: 6,337,800 rows available
+09:49:54 | contest.signatures: loaded 6,337,485 rows in 2.3s
+09:49:54 | 
+09:49:54 | === PER-SOURCE NORMALIZATION (Rosetta Stone) ===
+09:49:54 | Per-source normalization constants:
+09:49:54 |   WSPR:    mean=-17.77 dB, std=6.33 dB
+09:49:54 |   RBN:     mean=17.84 dB, std=8.17 dB
+09:49:54 |   Contest: mean=5.64 dB, std=4.96 dB
+09:49:54 | 
+09:49:54 | Normalized Z-scores (should all be ~0 mean, ~1 std):
+09:49:54 |   WSPR:    mean=-0.0000, std=1.0000
+09:49:54 |   RBN:     mean=0.0022, std=1.0024
+09:49:54 |   Contest: mean=0.0000, std=1.0000
+09:49:54 | 
+09:49:54 | Engineering features...
+09:50:36 | Upsampling RBN DXpedition 50x...
+09:50:36 |   DXpedition effective rows: 4,565,050
+09:50:36 |   Contest effective rows: 6,337,485
+09:50:36 | 
+09:50:36 | Combined dataset (before storm upsample): 35,902,535 rows
+09:50:36 |   WSPR (floor):       20,000,000 (55.7%)
+09:50:36 |   RBN Full (middle):  5,000,000 (13.9%)
+09:50:36 |   RBN DX (rare):      4,565,050 (12.7%)
+09:50:36 |   Contest (ceiling):  6,337,485 (17.7%)
+09:50:36 | Storm upsample: 99,086 rows with Kp >= 5 (0.28%)
+09:50:36 |   Upsampling storm rows 20x...
+09:50:37 |   After storm upsample: 37,884,255 rows (+1,981,720)
+09:50:37 | 
+09:50:37 | Combined targets (Z-scores): mean=-0.0031, std=0.9880
+09:50:37 | Dataset: 37,884,255 rows x 13 features
+09:50:37 | Source data range: 2008-03-11 to 2026-02-01
+09:50:38 | Split: 30,307,404 train / 7,576,851 val
+09:50:38 | Model params: 173,173 total, 173,173 trainable
+09:50:38 | 
+09:50:39 |  Ep     Train       Val     RMSE   Pearson   SFI+   Kp9-    Time
+09:50:39 | ----------------------------------------------------------------
+09:54:15 |   1    0.7717    0.7191   0.848σ  +0.2341  +0.20  +0.27  215.8s *
+09:57:43 |   2    0.7209    0.6886   0.830σ  +0.2884  +0.24  +0.21  208.3s *
+10:01:20 |   3    0.6982    0.6752   0.822σ  +0.3130  +0.26  +0.16  217.1s *
+10:04:53 |   4    0.6863    0.6691   0.818σ  +0.3226  +0.27  +0.13  213.3s *
