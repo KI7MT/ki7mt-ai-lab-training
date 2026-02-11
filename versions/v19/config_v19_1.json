@@ -1,0 +1,57 @@
+{
+  "version": "v19.1",
+  "checkpoint": "ionis_v19_1.pth",
+  "architecture": "IonisV12Gate",
+  "normalization": "per_source",
+  "training_strategy": "two_stage_physics_first",
+  "warmup_epochs": 5,
+  "storm_upsample_factor": 20,
+  "norm_constants": {
+    "wspr":    { "mean": -17.8, "std": 6.3 },
+    "rbn":     { "mean": 17.9, "std": 8.2 },
+    "contest": { "mean": 5.6, "std": 5.0 }
+  },
+  "mode_map": {
+    "wspr": "wspr",
+    "ft8": "wspr",
+    "ft4": "wspr",
+    "jt65": "wspr",
+    "jt9": "wspr",
+    "js8": "wspr",
+    "cw_machine": "rbn",
+    "cw_human": "contest",
+    "rtty": "rbn",
+    "ssb": "contest"
+  },
+  "thresholds": {
+    "wspr": -28.0,
+    "ft8": -20.0,
+    "ft4": -20.0,
+    "jt65": -24.0,
+    "jt9": -24.0,
+    "js8": -21.0,
+    "cw_human": -10.0,
+    "cw_machine": -18.0,
+    "rtty": -5.0,
+    "ssb": 5.0
+  },
+  "validation": {
+    "step_i_recall_min": 80.0,
+    "step_i_recall_max": 99.0,
+    "pskr_recall_min": 80.0,
+    "pskr_recall_max": 95.0,
+    "sfi_benefit_min": 0.3,
+    "kp_storm_min": 0.10
+  },
+  "baselines": {
+    "voacap": 75.82,
+    "previous_version": "v19",
+    "v19_kp_final": 0.05
+  },
+  "remediation": {
+    "diagnosis": "Feature Cannibalization - DNN absorbed all gradient signal",
+    "fix_1": "Two-stage training: freeze trunk for 5 epochs, train sidecars only",
+    "fix_2": "Storm upsampling doubled from 10x to 20x",
+    "expected_outcome": "Kp9- initializes high (~2.0σ) and stays > 0.10σ"
+  }
+}
