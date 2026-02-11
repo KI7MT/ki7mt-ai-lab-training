@@ -321,7 +321,14 @@ def load_combined_data(config):
 
     # Load each source
     wspr_df = load_source_data(client, "wspr.signatures_v2_terrestrial", wspr_sample)
-    rbn_full_df = load_source_data(client, "rbn.signatures", rbn_full_sample)
+
+    # Guard: skip RBN Full when sample == 0 (V16 recipe)
+    if rbn_full_sample > 0:
+        rbn_full_df = load_source_data(client, "rbn.signatures", rbn_full_sample)
+    else:
+        log.info("rbn.signatures: skipped (rbn_full_sample=0)")
+        rbn_full_df = None
+
     rbn_dx_df = load_source_data(client, "rbn.dxpedition_signatures", None)
     contest_df = load_source_data(client, "contest.signatures", None)
 
@@ -343,9 +350,16 @@ def load_combined_data(config):
     log.info("=== PER-SOURCE NORMALIZATION (Rosetta Stone) ===")
 
     wspr_snr_raw = wspr_df['median_snr'].values.astype(np.float32)
-    rbn_full_snr_raw = rbn_full_df['median_snr'].values.astype(np.float32)
     rbn_dx_snr_raw = rbn_dx_df['median_snr'].values.astype(np.float32)
     contest_snr_raw = contest_df['median_snr'].values.astype(np.float32)
+
+    # Handle RBN Full (may be None if rbn_full_sample=0)
+    if rbn_full_df is not None:
+        rbn_full_snr_raw = rbn_full_df['median_snr'].values.astype(np.float32)
+        rbn_all_snr = np.concatenate([rbn_full_snr_raw, rbn_dx_snr_raw])
+    else:
+        rbn_full_snr_raw = np.array([], dtype=np.float32)
+        rbn_all_snr = rbn_dx_snr_raw  # DXpedition only
 
     norm_constants = {
         "wspr": {
@@ -353,8 +367,8 @@ def load_combined_data(config):
             "std": float(wspr_snr_raw.std())
         },
         "rbn": {
-            "mean": float(np.concatenate([rbn_full_snr_raw, rbn_dx_snr_raw]).mean()),
-            "std": float(np.concatenate([rbn_full_snr_raw, rbn_dx_snr_raw]).std())
+            "mean": float(rbn_all_snr.mean()),
+            "std": float(rbn_all_snr.std())
         },
         "contest": {
             "mean": float(contest_snr_raw.mean()),
@@ -369,36 +383,54 @@ def load_combined_data(config):
 
     # Normalize to Z-scores
     wspr_snr_z = (wspr_snr_raw - norm_constants['wspr']['mean']) / norm_constants['wspr']['std']
-    rbn_full_snr_z = (rbn_full_snr_raw - norm_constants['rbn']['mean']) / norm_constants['rbn']['std']
     rbn_dx_snr_z = (rbn_dx_snr_raw - norm_constants['rbn']['mean']) / norm_constants['rbn']['std']
     contest_snr_z = (contest_snr_raw - norm_constants['contest']['mean']) / norm_constants['contest']['std']
+
+    # RBN Full Z-scores (empty array if skipped)
+    if len(rbn_full_snr_raw) > 0:
+        rbn_full_snr_z = (rbn_full_snr_raw - norm_constants['rbn']['mean']) / norm_constants['rbn']['std']
+    else:
+        rbn_full_snr_z = np.array([], dtype=np.float32)
 
     log.info("")
     log.info("Normalized Z-scores (should all be ~0 mean, ~1 std):")
     log.info(f"  WSPR:    mean={wspr_snr_z.mean():.4f}, std={wspr_snr_z.std():.4f}")
-    log.info(f"  RBN:     mean={rbn_full_snr_z.mean():.4f}, std={rbn_full_snr_z.std():.4f}")
+    if len(rbn_full_snr_z) > 0:
+        log.info(f"  RBN:     mean={rbn_full_snr_z.mean():.4f}, std={rbn_full_snr_z.std():.4f}")
+    else:
+        log.info(f"  RBN:     (skipped - DXpedition only)")
     log.info(f"  Contest: mean={contest_snr_z.mean():.4f}, std={contest_snr_z.std():.4f}")
 
     # ── Engineer Features ──
     log.info("")
     log.info("Engineering features...")
     wspr_X = engineer_features(wspr_df, config)
-    rbn_full_X = engineer_features(rbn_full_df, config)
     rbn_dx_X = engineer_features(rbn_dx_df, config)
     contest_X = engineer_features(contest_df, config)
+
+    # RBN Full features (empty if skipped)
+    if rbn_full_df is not None:
+        rbn_full_X = engineer_features(rbn_full_df, config)
+    else:
+        input_dim = config["model"]["input_dim"]
+        rbn_full_X = np.zeros((0, input_dim), dtype=np.float32)
 
     # ── Prepare weights ──
     wspr_w = wspr_df['spot_count'].values.astype(np.float32)
     wspr_w = wspr_w / wspr_w.mean()
-
-    rbn_full_w = rbn_full_df['spot_count'].values.astype(np.float32)
-    rbn_full_w = rbn_full_w / rbn_full_w.mean()
 
     rbn_dx_w = rbn_dx_df['spot_count'].values.astype(np.float32)
     rbn_dx_w = rbn_dx_w / rbn_dx_w.mean()
 
     contest_w = contest_df['spot_count'].values.astype(np.float32)
     contest_w = contest_w / contest_w.mean()
+
+    # RBN Full weights (empty if skipped)
+    if rbn_full_df is not None:
+        rbn_full_w = rbn_full_df['spot_count'].values.astype(np.float32)
+        rbn_full_w = rbn_full_w / rbn_full_w.mean()
+    else:
+        rbn_full_w = np.array([], dtype=np.float32)
 
     # ── Upsample DXpedition ──
     log.info(f"Upsampling RBN DXpedition {rbn_dx_upsample}x...")
@@ -458,7 +490,9 @@ def load_combined_data(config):
     w_combined = w_combined.reshape(-1, 1)
 
     # Free DataFrames
-    del wspr_df, rbn_full_df, rbn_dx_df, contest_df
+    del wspr_df, rbn_dx_df, contest_df
+    if rbn_full_df is not None:
+        del rbn_full_df
     del wspr_X, rbn_full_X, rbn_dx_X, contest_X, rbn_dx_X_up, contest_X_up
     del wspr_snr_raw, rbn_full_snr_raw, rbn_dx_snr_raw, contest_snr_raw
     gc.collect()
