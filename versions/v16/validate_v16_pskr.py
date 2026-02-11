@@ -228,12 +228,12 @@ def engineer_features_batch(df, sfi, kp):
     return X, band
 
 
-def denormalize_zscore(z_scores, bands):
+def denormalize_zscore(z_scores, bands, norm_constants):
     """Convert Z-scores to dB using V16's per-band WSPR constants."""
     snr_db = np.zeros_like(z_scores)
     for i, (z, band) in enumerate(zip(z_scores, bands)):
-        if band in NORM_CONSTANTS:
-            mean, std = NORM_CONSTANTS[band]['wspr']
+        if band in norm_constants:
+            mean, std = norm_constants[band]['wspr']
         else:
             mean, std = -17.8, 6.7  # fallback
         snr_db[i] = z * std + mean
@@ -263,28 +263,30 @@ def validate(limit=100000, mode='FT8'):
 
     # Load norm constants from checkpoint if available
     if 'norm_constants' in checkpoint:
-        global NORM_CONSTANTS
-        NORM_CONSTANTS = checkpoint['norm_constants']
+        norm_constants = checkpoint['norm_constants']
         print(f"  Using norm constants from checkpoint")
+    else:
+        norm_constants = NORM_CONSTANTS
+        print(f"  Using default norm constants")
     print()
 
     # Connect to ClickHouse
     print(f"Connecting to ClickHouse at {CH_HOST}:{CH_PORT}...")
     client = clickhouse_connect.get_client(host=CH_HOST, port=CH_PORT)
 
-    # Get latest solar data
+    # Get latest solar data (use max date in solar.bronze, which may lag behind)
     solar_query = """
     SELECT
         avg(adjusted_flux) as avg_sfi,
         avg(kp_index) as avg_kp
     FROM solar.bronze
-    WHERE date >= today() - 1
+    WHERE date = (SELECT max(date) FROM solar.bronze)
     """
     solar_result = client.query(solar_query)
     if solar_result.result_rows:
         sfi, kp = solar_result.result_rows[0]
-        sfi = float(sfi) if sfi else 140.0
-        kp = float(kp) if kp else 2.0
+        sfi = float(sfi) if sfi and not np.isnan(sfi) else 140.0
+        kp = float(kp) if kp and not np.isnan(kp) else 2.0
     else:
         sfi, kp = 140.0, 2.0
     print(f"Solar conditions: SFI={sfi:.1f}, Kp={kp:.1f}")
@@ -354,7 +356,7 @@ def validate(limit=100000, mode='FT8'):
     print(f"  {len(X):,} predictions in {elapsed:.2f}s ({len(X)/elapsed:.0f}/sec)")
 
     # Denormalize to dB
-    predicted_snr = denormalize_zscore(z_scores, bands)
+    predicted_snr = denormalize_zscore(z_scores, bands, norm_constants)
 
     # Compute metrics
     print()
