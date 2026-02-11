@@ -250,6 +250,210 @@ class IonisModel(nn.Module):
             return self.storm_sidecar(inp).item()
 
 
+# ── V16 Production Model ─────────────────────────────────────────────────────
+
+def _gate_v16(x):
+    """V16 gate function: range 0.5 to 2.0"""
+    return 0.5 + 1.5 * torch.sigmoid(x)
+
+
+class IonisV12Gate(nn.Module):
+    """
+    V16 Production Model — validated at 98.5% FT8 recall on PSKR live data.
+
+    Key differences from IonisModel:
+        - Gates from trunk output (256-dim), not raw input (11-dim)
+        - Gate range 0.5-2.0 (vs 0.5-1.5)
+        - Separate base_head (256→128→1) and scaler_heads (256→64→1)
+        - Uses Mish activation, no LayerNorm or Dropout
+        - Requires defibrillator init and weight clamping to keep sidecars alive
+
+    Args:
+        dnn_dim: Number of geography/time features (default 11)
+        sidecar_hidden: Hidden units in MonotonicMLP (default 8)
+        sfi_idx: Index of SFI feature in input (default 11)
+        kp_penalty_idx: Index of Kp penalty feature in input (default 12)
+        gate_init_bias: Initial bias for scaler heads (default -ln(2))
+    """
+
+    def __init__(self, dnn_dim=11, sidecar_hidden=8, sfi_idx=11, kp_penalty_idx=12,
+                 gate_init_bias=None):
+        super().__init__()
+
+        if gate_init_bias is None:
+            gate_init_bias = -math.log(2.0)
+
+        self.dnn_dim = dnn_dim
+        self.sfi_idx = sfi_idx
+        self.kp_penalty_idx = kp_penalty_idx
+
+        # Trunk: geography/time features → 256-dim representation
+        self.trunk = nn.Sequential(
+            nn.Linear(dnn_dim, 512), nn.Mish(),
+            nn.Linear(512, 256), nn.Mish(),
+        )
+
+        # Base head: trunk → SNR prediction
+        self.base_head = nn.Sequential(
+            nn.Linear(256, 128), nn.Mish(),
+            nn.Linear(128, 1),
+        )
+
+        # Scaler heads: trunk → gate logits (256-dim input, expressive)
+        self.sun_scaler_head = nn.Sequential(
+            nn.Linear(256, 64), nn.Mish(),
+            nn.Linear(64, 1),
+        )
+        self.storm_scaler_head = nn.Sequential(
+            nn.Linear(256, 64), nn.Mish(),
+            nn.Linear(64, 1),
+        )
+
+        # Physics sidecars (monotonic)
+        self.sun_sidecar = MonotonicMLP(hidden_dim=sidecar_hidden)
+        self.storm_sidecar = MonotonicMLP(hidden_dim=sidecar_hidden)
+
+        # Initialize scaler heads
+        self._init_scaler_heads(gate_init_bias)
+
+    def _init_scaler_heads(self, gate_init_bias):
+        """Initialize scaler head biases for balanced gates."""
+        for head in [self.sun_scaler_head, self.storm_scaler_head]:
+            final_layer = head[-1]
+            nn.init.zeros_(final_layer.weight)
+            nn.init.constant_(final_layer.bias, gate_init_bias)
+
+    def forward(self, x):
+        x_deep = x[:, :self.dnn_dim]
+        x_sfi = x[:, self.sfi_idx:self.sfi_idx + 1]
+        x_kp = x[:, self.kp_penalty_idx:self.kp_penalty_idx + 1]
+
+        trunk_out = self.trunk(x_deep)
+        base_snr = self.base_head(trunk_out)
+
+        sun_logit = self.sun_scaler_head(trunk_out)
+        storm_logit = self.storm_scaler_head(trunk_out)
+        sun_gate = _gate_v16(sun_logit)
+        storm_gate = _gate_v16(storm_logit)
+
+        return base_snr + sun_gate * self.sun_sidecar(x_sfi) + \
+               storm_gate * self.storm_sidecar(x_kp)
+
+    def forward_with_gates(self, x):
+        """Forward pass returning gate values for variance loss."""
+        x_deep = x[:, :self.dnn_dim]
+        x_sfi = x[:, self.sfi_idx:self.sfi_idx + 1]
+        x_kp = x[:, self.kp_penalty_idx:self.kp_penalty_idx + 1]
+
+        trunk_out = self.trunk(x_deep)
+        base_snr = self.base_head(trunk_out)
+
+        sun_logit = self.sun_scaler_head(trunk_out)
+        storm_logit = self.storm_scaler_head(trunk_out)
+        sun_gate = _gate_v16(sun_logit)
+        storm_gate = _gate_v16(storm_logit)
+
+        sun_boost = self.sun_sidecar(x_sfi)
+        storm_boost = self.storm_sidecar(x_kp)
+
+        return base_snr + sun_gate * sun_boost + storm_gate * storm_boost, \
+               sun_gate, storm_gate
+
+    def get_sun_effect(self, sfi_normalized, device):
+        """Get raw sun sidecar output for a given SFI value."""
+        with torch.no_grad():
+            x = torch.tensor([[sfi_normalized]], dtype=torch.float32, device=device)
+            return self.sun_sidecar(x).item()
+
+    def get_storm_effect(self, kp_penalty, device):
+        """Get raw storm sidecar output for a given Kp penalty value."""
+        with torch.no_grad():
+            x = torch.tensor([[kp_penalty]], dtype=torch.float32, device=device)
+            return self.storm_sidecar(x).item()
+
+    def get_gates(self, x):
+        """Get gate values without gradient tracking."""
+        x_deep = x[:, :self.dnn_dim]
+        with torch.no_grad():
+            trunk_out = self.trunk(x_deep)
+            sun_logit = self.sun_scaler_head(trunk_out)
+            storm_logit = self.storm_scaler_head(trunk_out)
+        return _gate_v16(sun_logit), _gate_v16(storm_logit)
+
+
+def init_v16_defibrillator(model):
+    """
+    Apply V16 defibrillator initialization to keep sidecars alive.
+
+    CRITICAL: Call this after model creation, before training.
+
+    This init:
+        - Sets sidecar weights to uniform(0.8, 1.2) instead of random
+        - Sets fc2.bias to -10.0 (strong initial offset)
+        - Freezes fc1.bias (prevents collapse)
+    """
+    def wake_up_sidecar(layer):
+        if isinstance(layer, nn.Linear):
+            nn.init.uniform_(layer.weight, 0.8, 1.2)
+            if layer.bias is not None:
+                nn.init.constant_(layer.bias, 0.0)
+
+    model.sun_sidecar.apply(wake_up_sidecar)
+    model.storm_sidecar.apply(wake_up_sidecar)
+
+    with torch.no_grad():
+        model.sun_sidecar.fc2.bias.fill_(-10.0)
+        model.storm_sidecar.fc2.bias.fill_(-10.0)
+
+    # Freeze fc1 bias, keep fc2 bias learnable
+    model.sun_sidecar.fc1.bias.requires_grad = False
+    model.sun_sidecar.fc2.bias.requires_grad = True
+    model.storm_sidecar.fc1.bias.requires_grad = False
+    model.storm_sidecar.fc2.bias.requires_grad = True
+
+    log.info("Defibrillator applied: sidecar weights uniform(0.8-1.2), fc2.bias=-10.0, fc1.bias frozen")
+
+
+def clamp_v16_sidecars(model):
+    """
+    Clamp sidecar weights to [0.5, 2.0] to prevent collapse.
+
+    CRITICAL: Call this after every optimizer.step() during training.
+
+    This prevents sidecars from collapsing to zero, which is what
+    killed every V19 variant.
+    """
+    with torch.no_grad():
+        for sidecar in [model.sun_sidecar, model.storm_sidecar]:
+            sidecar.fc1.weight.clamp_(0.5, 2.0)
+            sidecar.fc2.weight.clamp_(0.5, 2.0)
+
+
+def get_v16_optimizer_groups(model, trunk_lr=1e-5, scaler_lr=5e-5, sidecar_lr=1e-3):
+    """
+    Get V16's 6-group optimizer configuration.
+
+    Args:
+        model: IonisV12Gate model
+        trunk_lr: Learning rate for trunk and base_head
+        scaler_lr: Learning rate for scaler heads (intermediate)
+        sidecar_lr: Learning rate for sidecars (fastest)
+
+    Returns:
+        List of parameter groups for AdamW optimizer
+    """
+    return [
+        {'params': model.trunk.parameters(), 'lr': trunk_lr},
+        {'params': model.base_head.parameters(), 'lr': trunk_lr},
+        {'params': model.sun_scaler_head.parameters(), 'lr': scaler_lr},
+        {'params': model.storm_scaler_head.parameters(), 'lr': scaler_lr},
+        {'params': [p for p in model.sun_sidecar.parameters() if p.requires_grad],
+         'lr': sidecar_lr},
+        {'params': [p for p in model.storm_sidecar.parameters() if p.requires_grad],
+         'lr': sidecar_lr},
+    ]
+
+
 # ── Dataset ──────────────────────────────────────────────────────────────────
 
 class SignatureDataset(Dataset):
