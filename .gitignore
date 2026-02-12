@@ -1,6 +1,9 @@
 # Training data (large CSV exports from ClickHouse)
 data/
 
+# Model checkpoints (binary artifacts — stored on ZFS at /mnt/ionis-models)
+*.pth
+
 # Python virtual environment
 .venv/
 venv/
