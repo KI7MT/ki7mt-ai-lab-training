@@ -176,7 +176,7 @@ def test_physics():
     model.eval()
 
     total_params = sum(p.numel() for p in model.parameters())
-    print(f"  Architecture: {checkpoint.get('architecture', 'unknown')}")
+    # Architecture print removed
     print(f"  Parameters: {total_params:,}")
     print(f"  RMSE: {checkpoint.get('val_rmse', 0):.4f} dB")
     print(f"  Pearson: {checkpoint.get('val_pearson', 0):+.4f}")

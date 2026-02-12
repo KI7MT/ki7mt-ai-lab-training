@@ -147,7 +147,7 @@ def main():
     ).to(DEVICE)
     model.load_state_dict(checkpoint['model_state'])
     model.eval()
-    print(f"  Architecture: {checkpoint.get('architecture', CONFIG['model']['architecture'])}")
+    # Architecture print removed
     print(f"  RMSE: {checkpoint.get('val_rmse', 0):.4f} sigma")
     print(f"  Pearson: {checkpoint.get('val_pearson', 0):+.4f}")
     print()

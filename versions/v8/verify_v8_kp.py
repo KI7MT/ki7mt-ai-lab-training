@@ -55,7 +55,7 @@ def test_physics():
     # Unwrap: If it's a dictionary with metadata, pull out the weights
     if isinstance(checkpoint, dict) and "model_state" in checkpoint:
         print("  > Detected Enhanced Checkpoint (with Metadata). Unpacking...")
-        print(f"  > Architecture: {checkpoint.get('architecture', 'unknown')}")
+        # Architecture print removed
         print(f"  > Constraint: {checkpoint.get('monotonic_constraint', 'unknown')}")
         print(f"  > Sidecar weight: {checkpoint.get('sidecar_weight', 'unknown'):.4f}")
         state_dict = checkpoint["model_state"]

@@ -205,7 +205,7 @@ def main():
     model = IonisV12Gate(dnn_dim=DNN_DIM, sidecar_hidden=8).to(DEVICE)
     model.load_state_dict(checkpoint['model_state'])
     model.eval()
-    print(f"  Architecture: {checkpoint.get('architecture', 'IonisV12Gate')}")
+    # Architecture print removed
     print(f"  RMSE: {checkpoint.get('val_rmse', 0):.4f}σ")
     print(f"  Pearson: {checkpoint.get('val_pearson', 0):+.4f}")
     print()

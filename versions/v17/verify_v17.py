@@ -175,7 +175,7 @@ def test_physics():
     model.eval()
 
     total_params = sum(p.numel() for p in model.parameters())
-    print(f"  Architecture: {checkpoint.get('architecture', 'IonisV12Gate')}")
+    # Architecture print removed
     print(f"  Version: {checkpoint.get('version', 'v17')}")
     print(f"  Parameters: {total_params:,}")
     print(f"  RMSE: {checkpoint.get('val_rmse', 0):.4f} σ")

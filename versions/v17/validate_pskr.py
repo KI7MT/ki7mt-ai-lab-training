@@ -512,7 +512,7 @@ def main():
     model.load_state_dict(checkpoint['model_state'])
     model.eval()
 
-    print(f"  Architecture: IonisV12Gate (dnn_dim={dnn_dim}, sidecar_hidden={sidecar_hidden})")
+    # Architecture print removed
     print(f"  SNR normalization: mean={snr_mean:.2f}, std={snr_std:.2f}")
     print(f"  Device: {DEVICE}")
 

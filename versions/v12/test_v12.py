@@ -223,7 +223,7 @@ model.eval()
 
 total_params = sum(p.numel() for p in model.parameters())
 print(f"Model loaded: {total_params:,} params")
-print(f"Architecture: {checkpoint.get('architecture', 'unknown')}")
+# Architecture print removed
 print(f"Features: {checkpoint['features']}")
 print(f"Trained on: {checkpoint.get('date_range', 'unknown')}, "
       f"{checkpoint.get('sample_size', 'unknown'):,} rows")

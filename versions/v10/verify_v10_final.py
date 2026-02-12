@@ -54,7 +54,7 @@ def test_physics():
 
     if isinstance(checkpoint, dict) and "model_state" in checkpoint:
         print("  > Detected Enhanced Checkpoint (with Metadata). Unpacking...")
-        print(f"  > Architecture: {checkpoint.get('architecture', 'unknown')}")
+        # Architecture print removed
         print(f"  > Constraint: {checkpoint.get('monotonic_constraint', 'unknown')}")
         state_dict = checkpoint["model_state"]
         snr_std = checkpoint.get('snr_std', 8.7)

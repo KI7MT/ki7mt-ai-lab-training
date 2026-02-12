@@ -35,7 +35,7 @@ model.load_state_dict(checkpoint['model_state'])
 model.eval()
 
 print(f"Model loaded: {input_dim} features")
-print(f"Architecture: {checkpoint.get('architecture', 'unknown')}")
+# Architecture print removed
 print(f"Features: {checkpoint['features']}")
 print(f"Trained on: {checkpoint.get('date_range', 'unknown')}, "
       f"{checkpoint.get('sample_size', 'unknown'):,} rows, "
