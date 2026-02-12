@@ -1,6 +1,6 @@
 Name:           ki7mt-ai-lab-training
 Version:        2.4.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        IONIS V2 training scripts for KI7MT AI Lab
 
 License:        GPL-3.0-or-later
@@ -50,6 +50,10 @@ install -m 644 Modelfile %{buildroot}%{_datadir}/%{name}/
 %{_datadir}/%{name}/Modelfile
 
 %changelog
+* Wed Feb 12 2026 Greg Beam <ki7mt@yahoo.com> - 2.4.0-2
+- Remove .pth checkpoints from package (moved to ZFS archive-pool/ionis-models)
+- RPM now ships scripts only — model artifacts managed separately
+
 * Tue Feb 11 2026 Greg Beam <ki7mt@yahoo.com> - 2.4.0-1
 - V20 production release
 - Update description: ResidualBlock → IonisV12Gate (V20 production)
