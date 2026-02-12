@@ -240,8 +240,8 @@ PROFILES = {
         'tx_gain_dbi': -2.0,
         'rx_gain_dbi': 0.0,
     },
-    'eme_hf': {
-        'description': 'EME / extreme path (1.5 kW, large stacked arrays)',
+    'extreme_hf': {
+        'description': 'Extreme HF path (1.5 kW, large stacked arrays) — max link budget',
         'tx_power_w': 1500.0,
         'tx_gain_dbi': 16.0,
         'rx_gain_dbi': 16.0,
