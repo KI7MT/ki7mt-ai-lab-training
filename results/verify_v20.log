@@ -1,0 +1,90 @@
+Loading /Users/gbeam/workspace/ki7mt-ai-lab/ki7mt-ai-lab-training/versions/v20/ionis_v20.pth...
+  Architecture: IonisV12Gate
+  Parameters: 203,573
+  RMSE: 0.8617 sigma (5.77 dB equiv)
+  Pearson: +0.4879
+
+  NOTE: V20 outputs are in Z-score (sigma) units.
+        Approximate dB conversion: x6.7
+
+============================================================
+TEST 1: STORM SIDECAR (Kp)
+============================================================
+
+Scenario: SFI 150 (fixed), 20m Band, Mid-Day
+  SNR at Kp 0 (Quiet):  +1.642 sigma (+11.0 dB)
+  SNR at Kp 9 (Storm):  -0.101 sigma (-0.7 dB)
+  Storm Sidecar at Kp 0: +3.358 sigma
+  Storm Sidecar at Kp 9: -0.129 sigma
+  Storm gate at Kp 0: 0.5000
+  Storm gate at Kp 9: 0.5000
+
+  Storm Cost (Kp 0->9): +1.743 sigma (+11.7 dB)
+  PASS: Signal DROPPED during storm (correct physics)
+
+============================================================
+TEST 2: SUN SIDECAR (SFI)
+============================================================
+
+Scenario: Kp 2 (fixed), 20m Band, Mid-Day
+  SNR at SFI 70:   +1.044 sigma (+7.0 dB)
+  SNR at SFI 200:  +1.339 sigma (+9.0 dB)
+  Sun Sidecar at SFI 70:  -6.797 sigma
+  Sun Sidecar at SFI 200: -6.315 sigma
+  Sun gate at SFI 70:  0.6117
+  Sun gate at SFI 200: 0.6117
+
+  Sun Benefit (SFI 70->200): +0.295 sigma (+2.0 dB)
+  PASS: Signal IMPROVED with higher SFI (correct physics)
+
+============================================================
+TEST 3: GATE RANGE [0.5, 2.0]
+============================================================
+
+  1000 random inputs:
+  Sun gate:   min=0.5000, max=1.9945, mean=0.9142, std=0.4684
+  Storm gate: min=0.5000, max=2.0000, mean=0.5375, std=0.2297
+  PASS: All gate values within [0.5, 2.0]
+
+  Gate variance (higher = more geographic differentiation):
+  Sun gate var:   0.219375
+  Storm gate var: 0.052768
+  Gates are differentiating -- model is adding geographic modulation
+
+============================================================
+TEST 4: DECOMPOSITION MATH
+============================================================
+
+  Case                   base    sun_c    stm_c      sum     pred       err
+  ------------------------------------------------------------------------
+  Quiet mid-lat       +3.943  -3.980  +1.259  +1.222  +1.222  0.00e+00 OK
+  Storm mid-lat       +3.943  -3.980  -0.064  -0.101  -0.101  0.00e+00 OK
+  Low SFI quiet       +3.943  -4.158  +1.679  +1.464  +1.464  0.00e+00 OK
+  High SFI storm      +3.943  -3.742  -0.064  +0.136  +0.136  0.00e+00 OK
+
+  PASS: base + sun_gate*sun_raw + storm_gate*storm_raw = predicted
+
+============================================================
+V20 PHYSICS VERIFICATION SUMMARY
+============================================================
+  Storm Sidecar (Kp 0->9)         PASS
+  Sun Sidecar (SFI 70->200)       PASS
+  Gate range [0.5, 2.0]           PASS
+  Decomposition math              PASS
+
+ALL TESTS PASSED -- Physics constraints enforced
+
+  V20 Golden Master Physics:
+    Kp 0->9 storm cost:   +1.743 sigma (+11.7 dB)
+    SFI 70->200 benefit:  +0.295 sigma (+2.0 dB)
+    Storm/Sun ratio:     5.9:1
+    Sun gate range:      [0.5000, 1.9945]
+    Storm gate range:    [0.5000, 2.0000]
+
+  V16 Reference:
+    Kp storm cost:  +3.445 sigma
+    SFI benefit:    +0.478 sigma
+
+  V20 vs Thresholds:
+    Kp storm cost >= 3.0 sigma:  BELOW TARGET (+1.743)
+    SFI benefit >= 0.4 sigma:   BELOW TARGET (+0.295)

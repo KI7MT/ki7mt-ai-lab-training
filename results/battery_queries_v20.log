@@ -1,0 +1,48 @@
+======================================================================
+V20 Link Budget Battery Queries - 2026-02-11
+======================================================================
+
+QUERY 1: Master Results (profile x source)
+------------------------------------------
+profile       | source  | total_paths | recall_pct | avg_snr | bias_db | rmse_db
+--------------+---------+-------------+------------+---------+---------+--------
+wspr          | contest |   1,000,000 |      20.85 |   -11.1 |   10.38 |   13.08
+contest_cw    | contest |   1,000,000 |     100.00 |   -11.1 |   10.38 |   13.08
+wspr          | pskr    |      91,024 |      97.44 |    -9.9 |    0.04 |    8.87
+home_station  | pskr    |      91,052 |     100.00 |    -9.9 |   -0.01 |    8.85
+wspr          | rbn     |  56,694,090 |      15.61 |   -14.7 |  -32.55 |   34.00
+qrp_portable  | rbn     |  56,694,090 |      91.86 |   -14.7 |  -32.55 |   34.00
+home_station  | rbn     |  56,694,090 |     100.00 |   -14.7 |  -32.55 |   34.00
+
+QUERY 2: Discrimination Curve
+-----------------------------
+profile       | source  | total      | recall_pct | advantage_db
+--------------+---------+------------+------------+-------------
+wspr          | contest |  1,000,000 |      20.85 |      0.0 dB
+contest_cw    | contest |  1,000,000 |     100.00 |     53.0 dB
+wspr          | pskr    |     91,024 |      97.44 |      0.0 dB
+home_station  | pskr    |     91,052 |     100.00 |     31.0 dB
+wspr          | rbn     | 56,694,090 |      15.61 |      0.0 dB
+qrp_portable  | rbn     | 56,694,090 |      91.86 |     11.0 dB
+home_station  | rbn     | 56,694,090 |     100.00 |     31.0 dB
+
+QUERY 3: Per-Band (RBN, qrp_portable)
+-------------------------------------
+Band  | Total Paths | Recall
+------+-------------+--------
+160m  |   2,730,784 | 92.96%
+ 80m  |   6,456,383 | 92.29%
+ 60m  |     173,388 | 95.30%
+ 40m  |  14,281,599 | 92.91%
+ 30m  |   2,927,592 | 93.02%
+ 20m  |  16,463,304 | 90.57%
+ 17m  |   1,894,591 | 89.68%
+ 15m  |   7,627,941 | 89.64%
+ 12m  |     584,650 | 94.34%
+ 10m  |   3,553,858 | 96.38%
+
+KEY FINDINGS:
+- Discrimination zone: +0 to +31 dB
+- QRP Goldilocks: 91.86% at +11 dB 
+- Saturation: 100% recall at +31 dB and above
+- Low bands hardest (89-93%), high bands easiest (94-96%)

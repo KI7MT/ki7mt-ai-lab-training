@@ -1,0 +1,64 @@
+V20 Golden Master PSKR Validation
+============================================================
+Model: /Users/gbeam/workspace/ki7mt-ai-lab/ki7mt-ai-lab-training/versions/v20/ionis_v20.pth
+Mode: FT8
+Limit: 100,000
+
+Loading V20 model...
+  Checkpoint Pearson: 0.4879079759120941
+  Checkpoint RMSE: 0.8617047575542551
+  Using norm constants from checkpoint
+
+Connecting to ClickHouse at 10.60.1.1:8123...
+Solar conditions: SFI=140.4, Kp=1.6
+
+Loading PSKR FT8 spots...
+  Loaded 100,000 spots in 0.2s
+  Date range: 2026-02-09 17:February to 2026-02-11 10:February
+
+Engineering features...
+Running predictions...
+  100,000 predictions in 0.06s (1623625/sec)
+
+============================================================
+RESULTS
+============================================================
+
+Overall (100,000 spots):
+  Pearson r:  +0.0728
+  RMSE:       8.31 dB
+  MAE:        6.59 dB
+  Bias:       +0.35 dB
+
+Recall Analysis (threshold=-20.0 dB):
+  Observed open:   95,311 (95.3%)
+  Predicted open:  97,993 (98.0%)
+  True Positives:  93,401
+  False Negatives: 1,910
+  Recall:          98.00%
+  Precision:       95.31%
+  F1 Score:        96.64%
+
+Per-Band Breakdown:
+  Band     Count   Pearson    RMSE   Recall
+---------------------------------------------
+  160m       899   -0.0404   10.53    96.4%
+   80m     5,586   -0.0609    9.35    98.5%
+   60m     1,045   +0.0530    8.76    98.5%
+   40m    22,495   +0.0595    8.42    96.1%
+   30m     6,431   +0.1065    8.48    96.5%
+   20m    17,860   +0.1016    8.25    98.4%
+   17m     6,076   +0.1172    8.35    99.0%
+   15m    16,576   +0.1074    7.76    98.9%
+   12m     5,785   +0.0851    8.36    98.6%
+   10m    17,247   +0.0925    8.10    99.1%
+
+============================================================
+
+SUMMARY:
+  V16 Reference: FT8 recall 98.47%, overall recall 84.14%
+
+  NEEDS REVIEW: Pearson +0.0728, Recall 98.0%
+    - Pearson below threshold (+0.20)
+
+  V20 vs V16 FT8 recall: -0.47 pp (98.00% vs 98.47%)

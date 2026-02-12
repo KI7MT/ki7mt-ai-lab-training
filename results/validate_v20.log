@@ -1,0 +1,66 @@
+======================================================================
+  IONIS V20 Golden Master -- Step I Validation
+======================================================================
+
+Loading model from /Users/gbeam/workspace/ki7mt-ai-lab/ki7mt-ai-lab-training/versions/v20/ionis_v20.pth...
+  Architecture: IonisV12Gate
+  RMSE: 0.8617 sigma
+  Pearson: +0.4879
+
+Querying paths from 10.60.1.1:8123...
+  Loaded 1,000,000 paths in 0.3s
+
+Engineering features...
+  Feature matrix: (1000000, 13)
+  Feature ranges (first 5):
+    [0]: min=0.000, max=1.001, mean=0.233
+    [1]: min=0.782, max=0.931, mean=0.882
+    [2]: min=-1.000, max=1.000, mean=-0.007
+    [3]: min=-1.000, max=1.000, mean=-0.149
+    [4]: min=-1.000, max=1.000, mean=-0.018
+
+Running V20 inference...
+  Processed 50,000 / 1,000,000 (5.0%)
+  Processed 300,000 / 1,000,000 (30.0%)
+  Processed 550,000 / 1,000,000 (55.0%)
+  Processed 800,000 / 1,000,000 (80.0%)
+  Inference complete in 0.1s (6745835 paths/sec)
+  Predictions (sigma): min=-1.729, max=5.498, mean=1.005
+
+Denormalizing predictions to dB...
+  Predictions (dB): min=-29.6, max=19.0, mean=-11.1
+  Thresholds: min=-22.0, max=-21.0
+
+Applying mode thresholds...
+
+======================================================================
+  RESULTS
+======================================================================
+
+  Total paths:     1,000,000
+  Band open:       959,095
+  V20 Recall:      95.91%
+
+  Baselines:
+    VOACAP:        75.82%
+    IONIS V15:     86.89%
+
+  V20 vs VOACAP:   +20.09 pp
+  V20 vs V15:      +9.02 pp
+
+  Recall by Mode:
+    CW:  92.84% (459,200 paths)
+    PH:  98.34% (285,083 paths)
+    RY:  99.30% (233,446 paths)
+    DG:  92.41% (22,269 paths)
+
+  Recall by Band:
+    80m:  97.54% (95,350 paths)
+    40m:  96.80% (205,856 paths)
+    20m:  95.34% (348,712 paths)
+    15m:  93.30% (199,503 paths)
+    10m:  98.45% (150,579 paths)
+
+======================================================================
+  PASS: V20 recall 95.91% >= V15 Diamond baseline (86.89%)
+======================================================================
