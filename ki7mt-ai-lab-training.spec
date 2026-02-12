@@ -1,5 +1,5 @@
 Name:           ki7mt-ai-lab-training
-Version:        2.3.1
+Version:        2.4.0
 Release:        1%{?dist}
 Summary:        IONIS V2 training scripts for KI7MT AI Lab
 
@@ -14,9 +14,9 @@ Requires:       python3-pip
 Requires:       ki7mt-ai-lab-core >= 2.3.0
 
 %description
-IONIS (Ionospheric Neural Inference System) V2 training and analysis scripts
+IONIS (Ionospheric Neural Inference System) training and analysis scripts
 for the KI7MT AI Lab. PyTorch-based model predicting HF SNR from WSPR and
-solar features using ResidualBlock architecture.
+solar features using IonisV12Gate architecture (V20 production).
 
 Scripts:
   - train_v2_pilot.py:       Training script (queries ClickHouse, builds features, trains)
@@ -50,6 +50,10 @@ install -m 644 Modelfile %{buildroot}%{_datadir}/%{name}/
 %{_datadir}/%{name}/Modelfile
 
 %changelog
+* Tue Feb 11 2026 Greg Beam <ki7mt@yahoo.com> - 2.4.0-1
+- V20 production release
+- Update description: ResidualBlock → IonisV12Gate (V20 production)
+
 * Sat Feb 08 2026 Greg Beam <ki7mt@yahoo.com> - 2.3.1-1
 - Medallion architecture: gold_* table references
 - Align version across all lab packages at 2.3.1
